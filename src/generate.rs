@@ -52,12 +52,3 @@ impl <G: Generator, F, T> Generator for Map<G, F>
         (self.func)(self.generator.generate(ctx))
     }
 }
-
-impl <G: Generator> Generator for (G,) {
-    type Output = (G::Output,);
-
-    #[inline]
-    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> Self::Output {
-        (self.0.generate(ctx),)
-    }
-}
