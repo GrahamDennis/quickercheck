@@ -12,39 +12,27 @@ pub struct TestResult {
 #[derive(Copy, Clone)]
 pub enum Status { Pass, Fail, Discard }
 
-trait Testable<Args> {
-    fn test(&self, Args) -> TestResult;
+trait Testable {
+    fn test<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult;
 }
 
-#[derive(Copy, Clone)]
-struct Empty;
-
-impl Arbitrary for Empty {
-    type ArbitraryGenerator = Constant<Empty>;
-
-    fn arbitrary() -> Self::ArbitraryGenerator {
-        Constant(Empty)
-    }
-}
-
-pub trait IntoTestable<Args> {
-    type Testable: Testable<Args>;
+trait IntoTestable {
+    type Testable: Testable;
 
     fn into_testable(self) -> Self::Testable;
 }
 
-impl <T: Testable<Args>, Args> IntoTestable<Args> for T
-{
+impl <T: Testable> IntoTestable for T {
     type Testable = Self;
-    #[inline]
+
     fn into_testable(self) -> Self {
         self
     }
 }
 
-impl <T: Clone + Into<TestResult>> Testable<Empty> for T {
+impl <T: Clone + Into<TestResult>> Testable for T {
     #[inline]
-    fn test(&self, _: Empty) -> TestResult {
+    fn test<R: rand::Rng>(&self, _: &mut GenerateCtx<R>) -> TestResult {
         self.clone().into()
     }
 }
@@ -59,77 +47,40 @@ impl From<u8> for TestResult {
 #[derive(Copy, Clone)]
 pub struct CheckResult;
 
-fn qckchk<Args: Arbitrary, T: IntoTestable<Args>>(t: T) -> CheckResult
+fn qckchk<T: IntoTestable>(t: T) -> CheckResult
 {
     let testable = t.into_testable();
-    new_quickcheck(testable)
-}
-
-fn new_quickcheck<Args: Arbitrary, T>(t: T) -> CheckResult
-    where T: Testable<Args>
-{
-    let g = Args::arbitrary();
-    new_quickcheck_with_gen(t, g)
-}
-
-fn new_quickcheck_with_gen<Args, T: Testable<Args>, G: Generator<Output=Args>>(t: T, g: G) -> CheckResult {
     let mut ctx = GenerateCtx { rng: rand::thread_rng(), size: 5 };
-    let args = g.generate(&mut ctx);
-    let test_result: TestResult = t.test(args);
+    let test_result: TestResult = testable.test(&mut ctx);
     CheckResult
 }
 
-struct FnArgs<Args>(Args);
-
-impl <G: Generator> Generator for FnArgs<G> {
-    type Output = FnArgs<G::Output>;
-
-    #[inline]
-    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> Self::Output {
-        FnArgs(self.0.generate(ctx))
-    }
-}
-
-impl <Args: Arbitrary> Arbitrary for FnArgs<Args> {
-    type ArbitraryGenerator = FnArgs<Args::ArbitraryGenerator>;
-
-    #[inline]
-    fn arbitrary() -> Self::ArbitraryGenerator {
-        FnArgs(Args::arbitrary())
-    }
-}
-
-#[cfg(feature = "no_function_casts")]
-mod unstable {
-    use super::{TestResult, Testable, FnArgs};
-
-    impl <F: Fn<Args, Output=T>, T: Into<TestResult>, Args> Testable<FnArgs<Args>> for F
-    {
-        #[inline]
-        fn test(&self, args: FnArgs<Args>) -> TestResult {
-            self.call(args.0).into()
+macro_rules! fn_impls {
+    ($($name:ident),*) => {
+        impl <T: Into<TestResult>, $($name: Arbitrary),*> Testable for fn($($name),*) -> T {
+            #[inline]
+            #[allow(unused_variables, non_snake_case)]
+            fn test<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
+                let ( $($name,)* ) = ($($name::arbitrary().generate(ctx),)*);
+                self($($name),*).into()
+            }
         }
     }
 }
 
-#[cfg(not(feature = "no_function_casts"))]
-mod stable {
-    use super::{TestResult, Testable, FnArgs};
-
-    impl <Args, T: Into<TestResult>> Testable<FnArgs<(Args,)>> for fn(Args) -> T {
-        #[inline]
-        fn test(&self, args: FnArgs<(Args,)>) -> TestResult {
-            self((args.0).0).into()
-        }
-    }
-
-    impl <T: Into<TestResult>> Testable<FnArgs<()>> for fn() -> T {
-        #[inline]
-        fn test(&self, _: FnArgs<()>) -> TestResult {
-            self().into()
-        }
-    }
-}
+fn_impls!{}
+fn_impls!{A}
+fn_impls!{A, B}
+fn_impls!{A, B, C}
+fn_impls!{A, B, C, D}
+fn_impls!{A, B, C, D, E}
+fn_impls!{A, B, C, D, E, F}
+fn_impls!{A, B, C, D, E, F, G}
+fn_impls!{A, B, C, D, E, F, G, H}
+fn_impls!{A, B, C, D, E, F, G, H, I}
+fn_impls!{A, B, C, D, E, F, G, H, I, J}
+fn_impls!{A, B, C, D, E, F, G, H, I, J, K}
+fn_impls!{A, B, C, D, E, F, G, H, I, J, K, L}
 
 pub fn main() {
     qckchk(TestResult { status: Status::Pass });
@@ -144,17 +95,5 @@ pub fn main() {
     }
     qckchk(my_prop2 as fn(usize) -> u8);
 
-    let _ = qckchk(6u8);
-}
-
-#[cfg(feature = "no_function_casts")]
-fn unstable_checks() {
-    qckchk(TestResult { status: Status::Pass });
-    qckchk(|| TestResult { status: Status::Pass });
-    fn my_prop(_: usize) -> TestResult {
-        TestResult { status: Status::Pass }
-    }
-    qckchk(my_prop);
-    qckchk(|_:usize| TestResult { status: Status::Pass });
     let _ = qckchk(6u8);
 }
