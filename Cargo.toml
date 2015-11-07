@@ -1,0 +1,12 @@
+[package]
+name = "qckchk"
+version = "0.1.0"
+authors = ["Graham Dennis <graham.dennis@gmail.com>"]
+
+[dependencies]
+rand = "0.3"
+rand-distributions = "0.1"
+
+[features]
+default = []
+no_function_casts = []
