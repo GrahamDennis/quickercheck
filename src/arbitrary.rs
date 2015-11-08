@@ -1,6 +1,6 @@
 use generate::{Generator, Constant};
 
-pub trait Arbitrary {
+pub trait Arbitrary: Sized {
     type ArbitraryGenerator: Generator<Output=Self>;
 
     fn arbitrary() -> Self::ArbitraryGenerator;
