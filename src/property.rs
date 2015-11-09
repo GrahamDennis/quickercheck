@@ -1,7 +1,7 @@
 use quick_fn::QuickFn;
 use arbitrary::Arbitrary;
 use generate::{Generator, GenerateCtx};
-use testable::{IntoTestable, Testable, TestResult, Status};
+use testable::{IntoTestable, Testable, TestResult};
 
 use std::marker::PhantomData;
 use rand::Rng;
@@ -27,17 +27,6 @@ impl <G, F, T> Testable for ForAllProperty<G::Output, G, F>
     fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
         let args = self.generator.generate(ctx);
         self.f.call(args).into()
-    }
-}
-
-impl <Args, G, F> QuickFn<Args> for ForAllProperty<Args, G, F>
-    where F: QuickFn<Args>
-{
-    type Output = F::Output;
-
-    #[inline]
-    fn call(&self, args: Args) -> Self::Output {
-        self.f.call(args)
     }
 }
 
@@ -74,7 +63,7 @@ pub fn when<Args, P>(p: P) -> When<Args, P>
 }
 
 #[derive(Copy, Clone)]
-struct WhenFn<Args, P, F> {
+pub struct WhenFn<Args, P, F> {
     predicate: P,
     f: F,
     _marker: PhantomData<Args>
@@ -110,20 +99,74 @@ impl <Args, P, F> IntoTestable for WhenFn<Args, P, F>
     }
 }
 
-impl <Args, P, F> QuickFn<Args> for WhenFn<Args, P, F>
-    where Args: Clone,
-          P: QuickFn<Args, Output=bool>,
-          F: QuickFn<Args>,
-          F::Output: Into<TestResult>
-{
-    type Output = TestResult;
+#[cfg(not(feature = "no_function_casts"))]
+mod stable {
+    use super::*;
+    use quick_fn::QuickFn;
+    use testable::{TestResult, Status};
 
-    #[inline]
-    fn call(&self, args: Args) -> Self::Output {
-        let fn_args = args.clone();
-        match self.predicate.call(args) {
-            false => TestResult { status: Status::Discard },
-            true  => self.f.call(fn_args).into()
+    impl <Args, G, F> QuickFn<Args> for ForAllProperty<Args, G, F>
+        where F: QuickFn<Args>
+    {
+        type Output = F::Output;
+
+        #[inline]
+        fn call(&self, args: Args) -> Self::Output {
+            self.f.call(args)
+        }
+    }
+
+    impl <Args, P, F> QuickFn<Args> for WhenFn<Args, P, F>
+        where Args: Clone,
+              P: QuickFn<Args, Output=bool>,
+              F: QuickFn<Args>,
+              F::Output: Into<TestResult>
+    {
+        type Output = TestResult;
+
+        #[inline]
+        fn call(&self, args: Args) -> Self::Output {
+            let fn_args = args.clone();
+            match self.predicate.call(args) {
+                false => TestResult { status: Status::Discard },
+                true  => self.f.call(fn_args).into()
+            }
+        }
+    }
+}
+
+#[cfg(feature = "no_function_casts")]
+mod unstable {
+    use super::*;
+    use quick_fn::QuickFn;
+    use testable::{TestResult, Status};
+
+    impl <Args, G, F> Fn<Args> for ForAllProperty<Args, G, F>
+        where F: QuickFn<Args>
+    {
+        type Output = F::Output;
+
+        #[inline]
+        fn call(&self, args: Args) -> Self::Output {
+            self.f.call(args)
+        }
+    }
+
+    impl <Args, P, F> Fn<Args> for WhenFn<Args, P, F>
+        where Args: Clone,
+              P: Fn<Args, Output=bool>,
+              F: Fn<Args>,
+              F::Output: Into<TestResult>
+    {
+        type Output = TestResult;
+
+        #[inline]
+        fn call(&self, args: Args) -> Self::Output {
+            let fn_args = args.clone();
+            match self.predicate.call(args) {
+                false => TestResult { status: Status::Discard },
+                true  => self.f.call(fn_args).into()
+            }
         }
     }
 }
@@ -157,13 +200,7 @@ mod tests {
 
     #[test]
     fn test_simple_property() {
-        Property::<()>::property(|| false);
-    }
-
-    #[test]
-    #[cfg(feature = "no_function_casts")]
-    fn test_simple_property_unstable() {
-        Property::property(|| false);
+        Property::<()>::new(|| false);
     }
 
     #[test]
@@ -179,5 +216,52 @@ mod tests {
     #[test]
     fn test_nested_when_property() {
         Property::<()>::for_all(<()>::arbitrary()).property(when(|| true).then(|| false));
+    }
+
+    #[test]
+    fn test_generic_property() {
+        fn property<A>(_: A) -> bool {
+            ::std::mem::size_of::<A>() == 0
+        }
+
+        Property::<(usize,)>::new(property);
+        // Doesn't type check
+        // Property::new(property as fn(usize) -> bool);
+    }
+}
+
+#[cfg(all(test, feature = "no_function_casts"))]
+mod unstable_tests {
+    use super::*;
+    use arbitrary::Arbitrary;
+
+    #[test]
+    fn test_simple_property() {
+        Property::new(|| false);
+    }
+
+    #[test]
+    fn test_for_all_property() {
+        Property::for_all(<()>::arbitrary()).property(|| true);
+    }
+
+    #[test]
+    fn test_when_property() {
+        Property::when(|| false).then(|| true);
+    }
+
+    #[test]
+    fn test_nested_when_property() {
+        Property::for_all(<()>::arbitrary()).property(when(|| true).then(|| false));
+    }
+
+    #[test]
+    fn test_generic_property() {
+        fn property<A>(_: A) -> bool {
+            ::std::mem::size_of::<A>() == 0
+        }
+
+        Property::<(usize,)>::new(property);
+        Property::new(property as fn(usize) -> bool);
     }
 }
