@@ -158,4 +158,10 @@ mod tests {
         fn my_fn2(_:usize) -> bool { true }
         qckchk(my_fn2 as fn(usize) -> bool);
     }
+
+    #[test]
+    fn cast_fn_is_testable2() {
+        fn simple_prop() -> TestResult { TestResult { status: Status::Pass }};
+        qckchk(simple_prop as fn() -> TestResult);
+    }
 }
