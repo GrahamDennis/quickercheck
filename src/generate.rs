@@ -1,5 +1,6 @@
 use rand;
 
+#[derive(Copy, Clone)]
 pub struct GenerateCtx<R> {
     pub rng: R,
     pub size: usize
@@ -9,13 +10,6 @@ pub trait Generator {
     type Output;
 
     fn generate<R: rand::Rng>(&self, &mut GenerateCtx<R>) -> <Self as Generator>::Output;
-
-    #[inline]
-    fn map<'a, F, T>(&'a self, f: F) -> Map<&'a Self, F>
-        where F: Fn(Self::Output) -> T
-    {
-        Map { generator: self, func: f }
-    }
 }
 
 impl <'a, G: Generator> Generator for &'a G {
@@ -27,6 +21,7 @@ impl <'a, G: Generator> Generator for &'a G {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct Constant<T>(pub T);
 
 impl <T: Clone> Generator for Constant<T> {
@@ -38,17 +33,19 @@ impl <T: Clone> Generator for Constant<T> {
     }
 }
 
-pub struct Map<G, F> {
-    generator: G,
-    func: F,
-}
+macro_rules! fn_impls {
+    ($($name:ident),*) => {
+        impl <$($name: Generator),*> Generator for ($($name,)*) {
+            type Output = ($($name::Output,)*);
 
-impl <G: Generator, F, T> Generator for Map<G, F>
-    where F: Fn(G::Output) -> T
-{
-    type Output = T;
-
-    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> T {
-        (self.func)(self.generator.generate(ctx))
+            #[inline]
+            #[allow(unused_variables, non_snake_case)]
+            fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> Self::Output {
+                let ( $(ref $name,)* ) = *self;
+                ($($name.generate(ctx),)*)
+            }
+        }
     }
 }
+
+macro_tuples_impl!{fn_impls}

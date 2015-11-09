@@ -3,7 +3,11 @@
 extern crate rand;
 extern crate rand_distributions;
 
+#[macro_use]
+mod macros;
+
 mod generate;
 mod arbitrary;
-mod call;
+mod quick_fn;
 mod testable;
+mod property;
