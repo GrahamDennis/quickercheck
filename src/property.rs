@@ -71,7 +71,7 @@ pub struct WhenFn<Args, P, F> {
 
 impl <Args, P> When<Args, P> {
     #[inline]
-    pub fn then<F: QuickFn<Args>>(self, f: F)
+    pub fn property<F: QuickFn<Args>>(self, f: F)
         -> ForAllProperty<Args, Args::ArbitraryGenerator, WhenFn<Args, P, F>>
         where Args: Arbitrary,
               P: QuickFn<Args, Output=bool>,
@@ -210,12 +210,12 @@ mod tests {
 
     #[test]
     fn test_when_property() {
-        Property::<()>::when(|| false).then(|| true);
+        Property::<()>::when(|| false).property(|| true);
     }
 
     #[test]
     fn test_nested_when_property() {
-        Property::<()>::for_all(<()>::arbitrary()).property(when(|| true).then(|| false));
+        Property::<()>::for_all(<()>::arbitrary()).property(when(|| true).property(|| false));
     }
 
     #[test]
@@ -252,7 +252,7 @@ mod unstable_tests {
 
     #[test]
     fn test_nested_when_property() {
-        Property::for_all(<()>::arbitrary()).property(when(|| true).then(|| false));
+        Property::for_all(<()>::arbitrary()).property(when(|| true).property(|| false));
     }
 
     #[test]

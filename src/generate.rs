@@ -1,8 +1,7 @@
 use rand;
 
-#[derive(Copy, Clone)]
-pub struct GenerateCtx<R> {
-    pub rng: R,
+pub struct GenerateCtx<'a, R: ?Sized + 'a> {
+    pub rng: &'a mut R,
     pub size: usize
 }
 
@@ -33,7 +32,7 @@ impl <T: Clone> Generator for Constant<T> {
     }
 }
 
-macro_rules! fn_impls {
+macro_rules! tuple_impls {
     ($($name:ident),*) => {
         impl <$($name: Generator),*> Generator for ($($name,)*) {
             type Output = ($($name::Output,)*);
@@ -48,4 +47,27 @@ macro_rules! fn_impls {
     }
 }
 
-macro_tuples_impl!{fn_impls}
+macro_tuples_impl!{tuple_impls}
+
+pub struct FnGenerator<T> {
+    f: Box<Fn(&mut GenerateCtx<rand::Rng>) -> T>
+}
+
+impl <T> Generator for FnGenerator<T> {
+    type Output = T;
+
+    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> T {
+        let mut boxed_ctx = GenerateCtx { rng: ctx.rng as &mut rand::Rng, size: ctx.size };
+        (self.f)(&mut boxed_ctx)
+    }
+}
+
+impl <T> FnGenerator<T> {
+    fn new<F: Fn(&mut GenerateCtx<rand::Rng>) -> T + 'static>(f: F) -> FnGenerator<T> {
+        FnGenerator { f: Box::new(f) }
+    }
+}
+
+fn testy() -> FnGenerator<u32> {
+    FnGenerator::new(|ctx| ctx.rng.next_u32())
+}

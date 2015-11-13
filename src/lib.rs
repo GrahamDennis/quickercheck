@@ -9,5 +9,6 @@ mod macros;
 mod generate;
 mod arbitrary;
 mod quick_fn;
-mod testable;
 mod property;
+mod testable;
+mod quick_check;
