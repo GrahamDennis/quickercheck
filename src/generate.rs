@@ -95,11 +95,12 @@ impl <T> FnGenerator<T> {
     }
 }
 
-fn testy() -> FnGenerator<u32> {
-    FnGenerator::new(|ctx| ctx.rng.next_u32())
-}
-
 pub struct IntegerGenerator<X>(PhantomData<fn() -> X>);
+
+impl <X> IntegerGenerator<X> where IntegerGenerator<X>: Generator
+{
+    fn new() -> Self { IntegerGenerator(PhantomData) }
+}
 
 macro_rules! int_impls {
     ($($ty:ty),*) => {
@@ -126,6 +127,11 @@ macro_rules! int_impls {
 int_impls! { i8, i16, i32, i64, isize }
 
 pub struct UnsignedIntegerGenerator<X>(PhantomData<fn() -> X>);
+
+impl <X> UnsignedIntegerGenerator<X> where UnsignedIntegerGenerator<X>: Generator
+{
+    fn new() -> Self { UnsignedIntegerGenerator(PhantomData) }
+}
 
 macro_rules! uint_impls {
     ($($ty:ty),*) => {
@@ -219,5 +225,38 @@ impl Generator for SimpleGenerator<bool> {
 
     fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> Self::Output {
         ctx.rng.gen()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use rand;
+
+    #[test]
+    fn gen_unit() {
+        let mut rng = rand::thread_rng(); let mut ctx = GenerateCtx::new(&mut rng, 5);
+        assert_eq!(().generate(&mut ctx), ());
+    }
+
+    #[test]
+    fn gen_u8() {
+        let mut rng = rand::thread_rng(); let mut ctx = GenerateCtx::new(&mut rng, 5);
+        let gen = UnsignedIntegerGenerator::<u8>::new();
+        rep(&mut || { let n = gen.generate(&mut ctx); assert!(n <= 5); });
+    }
+
+    #[test]
+    fn gen_i8() {
+        let mut rng = rand::thread_rng(); let mut ctx = GenerateCtx::new(&mut rng, 5);
+        let gen = UnsignedIntegerGenerator::<i8>::new();
+        rep(&mut || { let n = gen.generate(&mut ctx); assert!((n >= -5) && (n <= 5)); });
+    }
+
+    fn rep<F>(f: &mut F) where F: FnMut() -> () {
+        for _ in 0..100 {
+            f()
+        }
     }
 }
