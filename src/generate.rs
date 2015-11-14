@@ -1,8 +1,35 @@
+use std::marker::PhantomData;
+use std::iter::FromIterator;
+
 use rand;
+use num::traits::FromPrimitive;
 
 pub struct GenerateCtx<'a, R: ?Sized + 'a> {
     pub rng: &'a mut R,
     pub size: usize
+}
+
+impl <'a, R: ?Sized + 'a> GenerateCtx<'a, R> {
+    fn new(rng: &'a mut R, size: usize) -> Self {
+        GenerateCtx { rng: rng, size: size }
+    }
+
+    #[inline]
+    fn chop<'b>(&'b mut self) -> GenerateCtx<'b, R>
+        where 'a: 'b
+    {
+        Self::new(self.rng, self.size/2)
+    }
+
+    fn gen_size(&mut self) -> usize
+        where R: rand::Rng + Sized
+    {
+        match self.size {
+            0 => 0,
+            size @ _ if size == <usize>::max_value() => self.rng.gen(),
+            size @ _ => self.rng.gen_range(0, size + 1)
+        }
+    }
 }
 
 pub trait Generator {
@@ -70,4 +97,127 @@ impl <T> FnGenerator<T> {
 
 fn testy() -> FnGenerator<u32> {
     FnGenerator::new(|ctx| ctx.rng.next_u32())
+}
+
+pub struct IntegerGenerator<X>(PhantomData<fn() -> X>);
+
+macro_rules! int_impls {
+    ($($ty:ty),*) => {
+        $(
+            impl Generator for IntegerGenerator<$ty>
+            {
+                type Output = $ty;
+
+                fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> $ty {
+                    if ctx.size == 0 { return 0; }
+                    let cast_size = <$ty>::from_usize(ctx.size);
+                    let upper_bound = cast_size.and_then(|s| s.checked_add(1));
+                    let lower_bound = cast_size.and_then(|s| s.checked_mul(-1));
+                    match (lower_bound, upper_bound) {
+                        (Some(lower), Some(upper)) => ctx.rng.gen_range(lower, upper),
+                        _ => ctx.rng.gen()
+                    }
+                }
+            }
+        )*
+    }
+}
+
+int_impls! { i8, i16, i32, i64, isize }
+
+pub struct UnsignedIntegerGenerator<X>(PhantomData<fn() -> X>);
+
+macro_rules! uint_impls {
+    ($($ty:ty),*) => {
+        $(
+            impl Generator for UnsignedIntegerGenerator<$ty>
+            {
+                type Output = $ty;
+
+                fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> $ty {
+                    if ctx.size == 0 { return 0; }
+                    let upper_bound = <$ty>::from_usize(ctx.size).and_then(|s| s.checked_add(1));
+                    match upper_bound {
+                        Some(upper) => ctx.rng.gen_range(0, upper),
+                        _ => ctx.rng.gen()
+                    }
+                }
+            }
+        )*
+    }
+}
+
+uint_impls! { u8, u16, u32, u64, usize, i8, i16, i32, i64, isize }
+
+pub struct FromIteratorGenerator<C, G> {
+    generator: G,
+    _marker: PhantomData<fn() -> C>
+}
+
+impl <C, G> FromIteratorGenerator<C, G>
+    where FromIteratorGenerator<C, G>: Generator
+{
+    fn new(generator: G) -> Self {
+        FromIteratorGenerator { generator: generator, _marker: PhantomData }
+    }
+}
+
+impl <C, G> Generator for FromIteratorGenerator<C, G>
+    where G: Generator,
+          C: FromIterator<G::Output>
+{
+    type Output = C;
+
+    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> Self::Output {
+        let size = ctx.gen_size();
+        let mut chopped_ctx = ctx.chop();
+        (0..size).map(|_| self.generator.generate(&mut chopped_ctx)).collect()
+    }
+}
+
+pub struct OptionGenerator<C, G> {
+    generator: G,
+    _marker: PhantomData<fn() -> C>
+}
+
+impl <C, G> OptionGenerator<C, G>
+    where OptionGenerator<C, G>: Generator
+{
+    fn new(generator: G) -> Self { OptionGenerator { generator: generator, _marker: PhantomData } }
+}
+
+impl <G: Generator> Generator for OptionGenerator<Option<G::Output>, G> {
+    type Output = Option<G::Output>;
+
+    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> Self::Output {
+        match ctx.rng.gen() {
+            true => Some(self.generator.generate(ctx)),
+            false => None
+        }
+    }
+}
+
+pub struct ResultGenerator<GOk, GErr> {
+    g_ok: GOk,
+    g_err: GErr
+}
+
+impl <GOk: Generator, GErr: Generator> Generator for ResultGenerator<GOk, GErr> {
+    type Output = Result<GOk::Output, GErr::Output>;
+
+    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> Self::Output {
+        match ctx.rng.gen() {
+            true => Ok(self.g_ok.generate(ctx)),
+            false => Err(self.g_err.generate(ctx))
+        }
+    }
+}
+
+pub struct SimpleGenerator<T>(PhantomData<fn() -> T>);
+impl Generator for SimpleGenerator<bool> {
+    type Output = bool;
+
+    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> Self::Output {
+        ctx.rng.gen()
+    }
 }

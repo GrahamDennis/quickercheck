@@ -2,6 +2,7 @@
 
 extern crate rand;
 extern crate rand_distributions;
+extern crate num;
 
 #[macro_use]
 mod macros;

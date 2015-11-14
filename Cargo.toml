@@ -6,6 +6,7 @@ authors = ["Graham Dennis <graham.dennis@gmail.com>"]
 [dependencies]
 rand = "0.3"
 rand-distributions = "0.1"
+num = "0.1"
 
 [features]
 default = []
