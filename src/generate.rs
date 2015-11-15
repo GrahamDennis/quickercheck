@@ -181,18 +181,17 @@ impl <C, G> Generator for FromIteratorGenerator<C, G>
     }
 }
 
-pub struct OptionGenerator<C, G> {
-    generator: G,
-    _marker: PhantomData<fn() -> C>
+pub struct OptionGenerator<G> {
+    generator: G
 }
 
-impl <C, G> OptionGenerator<C, G>
-    where OptionGenerator<C, G>: Generator
+impl <G> OptionGenerator<G>
+    where OptionGenerator<G>: Generator
 {
-    pub fn new(generator: G) -> Self { OptionGenerator { generator: generator, _marker: PhantomData } }
+    pub fn new(generator: G) -> Self { OptionGenerator { generator: generator } }
 }
 
-impl <G: Generator> Generator for OptionGenerator<Option<G::Output>, G> {
+impl <G: Generator> Generator for OptionGenerator<G> {
     type Output = Option<G::Output>;
 
     fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> Self::Output {
@@ -208,6 +207,12 @@ pub struct ResultGenerator<GOk, GErr> {
     g_err: GErr
 }
 
+impl <GOk, GErr> ResultGenerator<GOk, GErr>
+    where ResultGenerator<GOk, GErr>: Generator
+{
+    pub fn new(g_ok: GOk, g_err: GErr) -> Self { ResultGenerator { g_ok: g_ok, g_err: g_err } }
+}
+
 impl <GOk: Generator, GErr: Generator> Generator for ResultGenerator<GOk, GErr> {
     type Output = Result<GOk::Output, GErr::Output>;
 
@@ -219,9 +224,18 @@ impl <GOk: Generator, GErr: Generator> Generator for ResultGenerator<GOk, GErr> 
     }
 }
 
-pub struct SimpleGenerator<T>(PhantomData<fn() -> T>);
-impl Generator for SimpleGenerator<bool> {
-    type Output = bool;
+pub struct RandGenerator<T>(PhantomData<fn() -> T>);
+
+impl <T> RandGenerator<T>
+    where RandGenerator<T>: Generator
+{
+    pub fn new() -> Self {
+        RandGenerator(PhantomData)
+    }
+}
+
+impl <T: rand::Rand> Generator for RandGenerator<T> {
+    type Output = T;
 
     fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> Self::Output {
         ctx.rng.gen()

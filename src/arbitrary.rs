@@ -1,4 +1,12 @@
-use generate::{Generator, IntegerGenerator, UnsignedIntegerGenerator, FromIteratorGenerator};
+use generate::{
+    Generator,
+    IntegerGenerator,
+    UnsignedIntegerGenerator,
+    FromIteratorGenerator,
+    OptionGenerator,
+    ResultGenerator,
+    RandGenerator
+};
 
 use std::collections::{
     BTreeMap,
@@ -10,7 +18,6 @@ use std::collections::{
     VecDeque
 };
 use std::iter::FromIterator;
-
 
 pub trait Arbitrary: Sized {
     type Generator: Generator<Output=Self>;
@@ -89,4 +96,44 @@ generic_impls! {
     BinaryHeap<T>,
     LinkedList<T>,
     VecDeque<T>
+}
+
+impl <T: Arbitrary> Arbitrary for Option<T> {
+    type Generator = OptionGenerator<T::Generator>;
+
+    fn arbitrary() -> Self::Generator {
+        OptionGenerator::new(T::arbitrary())
+    }
+}
+
+impl <TOk: Arbitrary, TErr: Arbitrary> Arbitrary for Result<TOk, TErr> {
+    type Generator = ResultGenerator<TOk::Generator, TErr::Generator>;
+
+    fn arbitrary() -> Self::Generator {
+        ResultGenerator::new(TOk::arbitrary(), TErr::arbitrary())
+    }
+}
+
+impl Arbitrary for bool {
+    type Generator = RandGenerator<bool>;
+
+    fn arbitrary() -> Self::Generator {
+        RandGenerator::new()
+    }
+}
+
+impl Arbitrary for char {
+    type Generator = RandGenerator<char>;
+
+    fn arbitrary() -> Self::Generator {
+        RandGenerator::new()
+    }
+}
+
+impl Arbitrary for String {
+    type Generator = FromIteratorGenerator<String, <char as Arbitrary>::Generator>;
+
+    fn arbitrary() -> Self::Generator {
+        FromIteratorGenerator::new(char::arbitrary())
+    }
 }
