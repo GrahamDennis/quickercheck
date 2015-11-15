@@ -72,7 +72,7 @@ pub struct WhenFn<Args, P, F> {
 impl <Args, P> When<Args, P> {
     #[inline]
     pub fn property<F: QuickFn<Args>>(self, f: F)
-        -> ForAllProperty<Args, Args::ArbitraryGenerator, WhenFn<Args, P, F>>
+        -> ForAllProperty<Args, Args::Generator, WhenFn<Args, P, F>>
         where Args: Arbitrary,
               P: QuickFn<Args, Output=bool>,
               WhenFn<Args, P, F>: QuickFn<Args>,
@@ -91,7 +91,7 @@ impl <Args, P, F> IntoTestable for WhenFn<Args, P, F>
           WhenFn<Args, P, F>: QuickFn<Args>,
           <WhenFn<Args, P, F> as QuickFn<Args>>::Output: Into<TestResult>
 {
-    type Testable = ForAllProperty<Args, Args::ArbitraryGenerator, Self>;
+    type Testable = ForAllProperty<Args, Args::Generator, Self>;
 
     #[inline]
     fn into_testable(self) -> Self::Testable {
@@ -172,7 +172,7 @@ mod unstable {
 }
 
 impl <Args> Property<Args> {
-    pub fn new<F: QuickFn<Args>>(f: F) -> ForAllProperty<Args, Args::ArbitraryGenerator, F>
+    pub fn new<F: QuickFn<Args>>(f: F) -> ForAllProperty<Args, Args::Generator, F>
         where Args: Arbitrary,
               F::Output: Into<TestResult>
     {

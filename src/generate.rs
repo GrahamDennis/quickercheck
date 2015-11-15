@@ -90,7 +90,7 @@ impl <T> Generator for FnGenerator<T> {
 }
 
 impl <T> FnGenerator<T> {
-    fn new<F: Fn(&mut GenerateCtx<rand::Rng>) -> T + 'static>(f: F) -> FnGenerator<T> {
+    pub fn new<F: Fn(&mut GenerateCtx<rand::Rng>) -> T + 'static>(f: F) -> FnGenerator<T> {
         FnGenerator { f: Box::new(f) }
     }
 }
@@ -99,7 +99,7 @@ pub struct IntegerGenerator<X>(PhantomData<fn() -> X>);
 
 impl <X> IntegerGenerator<X> where IntegerGenerator<X>: Generator
 {
-    fn new() -> Self { IntegerGenerator(PhantomData) }
+    pub fn new() -> Self { IntegerGenerator(PhantomData) }
 }
 
 macro_rules! int_impls {
@@ -130,7 +130,7 @@ pub struct UnsignedIntegerGenerator<X>(PhantomData<fn() -> X>);
 
 impl <X> UnsignedIntegerGenerator<X> where UnsignedIntegerGenerator<X>: Generator
 {
-    fn new() -> Self { UnsignedIntegerGenerator(PhantomData) }
+    pub fn new() -> Self { UnsignedIntegerGenerator(PhantomData) }
 }
 
 macro_rules! uint_impls {
@@ -163,7 +163,7 @@ pub struct FromIteratorGenerator<C, G> {
 impl <C, G> FromIteratorGenerator<C, G>
     where FromIteratorGenerator<C, G>: Generator
 {
-    fn new(generator: G) -> Self {
+    pub fn new(generator: G) -> Self {
         FromIteratorGenerator { generator: generator, _marker: PhantomData }
     }
 }
@@ -189,7 +189,7 @@ pub struct OptionGenerator<C, G> {
 impl <C, G> OptionGenerator<C, G>
     where OptionGenerator<C, G>: Generator
 {
-    fn new(generator: G) -> Self { OptionGenerator { generator: generator, _marker: PhantomData } }
+    pub fn new(generator: G) -> Self { OptionGenerator { generator: generator, _marker: PhantomData } }
 }
 
 impl <G: Generator> Generator for OptionGenerator<Option<G::Output>, G> {

@@ -76,7 +76,7 @@ macro_rules! fn_impls {
     ($($name:ident),*) => {
         impl <Output: Into<TestResult>, $($name: Arbitrary),*> IntoTestable for fn($($name),*) -> Output
         {
-            type Testable = ForAllProperty<($($name,)*), <($($name,)*) as Arbitrary>::ArbitraryGenerator, Self>;
+            type Testable = ForAllProperty<($($name,)*), <($($name,)*) as Arbitrary>::Generator, Self>;
 
             #[inline]
             fn into_testable(self) -> Self::Testable {
