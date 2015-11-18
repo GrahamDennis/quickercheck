@@ -22,6 +22,9 @@ pub enum Status { Pass, Fail, Discard }
 
 pub trait Testable {
     fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult;
+    fn is_expected_to_fail(&self) -> bool {
+        false
+    }
 }
 
 impl <'a, T: Testable> Testable for &'a T {
@@ -41,6 +44,12 @@ pub trait IntoTestable {
     {
         ResizedTestable { testable: self.into_testable(), resize: resize }
     }
+
+    fn expect_failure(self) -> FailureExpectedTestable<Self::Testable>
+        where Self: Sized
+    {
+        FailureExpectedTestable(self.into_testable())
+    }
 }
 
 pub struct ResizedTestable<T, F> {
@@ -57,6 +66,13 @@ impl <T, F> Testable for ResizedTestable<T, F>
         let mut new_ctx = GenerateCtx::new(ctx.rng, new_size);
         self.testable.test(&mut new_ctx)
     }
+}
+
+pub struct FailureExpectedTestable<T>(T);
+
+impl <T: Testable> Testable for FailureExpectedTestable<T> {
+    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult { self.0.test(ctx) }
+    fn is_expected_to_fail(&self) -> bool { true }
 }
 
 impl <T: Testable> IntoTestable for T {
@@ -82,6 +98,34 @@ impl From<bool> for TestResult {
     #[inline]
     fn from(success: bool) -> TestResult {
         if success { TestResult::passed() } else { TestResult::failed() }
+    }
+}
+
+impl <T, Err> Testable for Result<T, Err>
+    where for<'a> &'a Result<T, Err>: Into<TestResult>
+{
+    fn test<R: Rng>(&self, _: &mut GenerateCtx<R>) -> TestResult {
+        self.into()
+    }
+}
+
+impl <T: Into<TestResult>, Err> From<Result<T, Err>> for TestResult {
+    #[inline]
+    fn from(result: Result<T, Err>) -> TestResult {
+        match result {
+            Ok(t) => t.into(),
+            Err(_) => TestResult::failed()
+        }
+    }
+}
+
+impl <'a, T: Into<TestResult> + Clone, Err> From<&'a Result<T, Err>> for TestResult {
+    #[inline]
+    fn from(result: &'a Result<T, Err>) -> TestResult {
+        match *result {
+            Ok(ref t) => t.clone().into(),
+            Err(_) => TestResult::failed()
+        }
     }
 }
 
@@ -179,5 +223,11 @@ mod tests {
     fn cast_fn_is_testable2() {
         fn simple_prop() -> TestResult { TestResult { status: Status::Pass }};
         quickcheck(simple_prop as fn() -> TestResult);
+    }
+
+    #[test]
+    fn result_is_testable() {
+        let result: Result<bool, String> = Ok(true);
+        quickcheck(result);
     }
 }

@@ -53,7 +53,12 @@ impl QuickCheck
             match result.status {
                 Status::Pass => successful_tests += 1,
                 Status::Discard => continue,
-                Status::Fail => return Err(QuickCheckError::Failure { seed: seed, size:  size })
+                Status::Fail => {
+                    match testable.is_expected_to_fail() {
+                        false => return Err(QuickCheckError::Failure { seed: seed, size:  size }),
+                        true => return Ok(successful_tests)
+                    }
+                }
             }
         }
 

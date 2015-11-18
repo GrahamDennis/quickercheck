@@ -112,10 +112,23 @@ fn is_prime(n: usize) -> bool {
 }
 
 #[test]
-#[should_panic]
 fn sieve_not_prime() {
-    fn prop_all_prime(n: usize) -> bool {
-        sieve(n).into_iter().all(is_prime)
-    }
-    quickcheck(prop_all_prime as fn(usize) -> bool);
+    let prop_all_prime = Property::<(usize,)>
+        ::new(|n| sieve(n).into_iter().all(is_prime))
+        .expect_failure();
+    quickcheck(prop_all_prime);
+}
+
+#[test]
+fn sieve_not_all_primes() {
+    let prop_prime_iff_in_the_sieve = Property::<(usize,)>
+        ::new(|n| sieve(n) == (0..(n + 1)).filter(|&i| is_prime(i)).collect::<Vec<_>>())
+        .expect_failure();
+    quickcheck(prop_prime_iff_in_the_sieve);
+}
+
+#[test]
+fn testable_result() {
+    let prop = Property::<()>::new(|| -> Result<bool, String> { Ok(true) });
+    quickcheck(prop);
 }
