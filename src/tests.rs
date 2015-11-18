@@ -132,3 +132,27 @@ fn testable_result() {
     let prop = Property::<()>::new(|| -> Result<bool, String> { Ok(true) });
     quickcheck(prop);
 }
+
+#[test]
+#[should_panic]
+fn testable_result_err() {
+    quickcheck(Err::<bool, i32> as fn(i32) -> Result<bool, i32>);
+}
+
+#[test]
+fn testable_result_err2() {
+    quickcheck((Err::<bool, i32> as fn(i32) -> Result<bool, i32>).expect_failure());
+}
+
+#[test]
+fn testable_unit() {
+    fn do_nothing() {}
+    quickcheck(do_nothing as fn());
+}
+
+#[test]
+fn testable_unit_panic() {
+    fn panic() { panic!() }
+    let panic = Property::<()>::new(|| panic!());
+    assert!(quicktest(panic).is_err());
+}

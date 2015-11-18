@@ -129,6 +129,13 @@ impl <'a, T: Into<TestResult> + Clone, Err> From<&'a Result<T, Err>> for TestRes
     }
 }
 
+impl From<()> for TestResult {
+    #[inline]
+    fn from(_: ()) -> TestResult {
+        TestResult::passed()
+    }
+}
+
 macro_rules! fn_impls {
     ($($name:ident),*) => {
         impl <Output: Into<TestResult>, $($name: Arbitrary),*> IntoTestable for fn($($name),*) -> Output
