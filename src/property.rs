@@ -1,7 +1,7 @@
 use quick_fn::QuickFn;
 use arbitrary::Arbitrary;
 use generate::{Generator, GenerateCtx};
-use testable::{IntoTestable, Testable, TestResult};
+use testable::{IntoTestable, Testable, TestResult, Status};
 
 use std::marker::PhantomData;
 use rand::Rng;
@@ -56,12 +56,6 @@ pub struct When<Args, P> {
     _marker: PhantomData<Args>
 }
 
-pub fn when<Args, P>(p: P) -> When<Args, P>
-    where P: QuickFn<Args, Output=bool>
-{
-    When { predicate: p, _marker: PhantomData }
-}
-
 #[derive(Copy, Clone)]
 pub struct WhenFn<Args, P, F> {
     predicate: P,
@@ -99,74 +93,20 @@ impl <Args, P, F> IntoTestable for WhenFn<Args, P, F>
     }
 }
 
-#[cfg(not(feature = "no_function_casts"))]
-mod stable {
-    use super::*;
-    use quick_fn::QuickFn;
-    use testable::{TestResult, Status};
+impl <Args, P, F> QuickFn<Args> for WhenFn<Args, P, F>
+    where Args: Clone,
+          P: QuickFn<Args, Output=bool>,
+          F: QuickFn<Args>,
+          F::Output: Into<TestResult>
+{
+    type Output = TestResult;
 
-    impl <Args, G, F> QuickFn<Args> for ForAllProperty<Args, G, F>
-        where F: QuickFn<Args>
-    {
-        type Output = F::Output;
-
-        #[inline]
-        fn call(&self, args: Args) -> Self::Output {
-            self.f.call(args)
-        }
-    }
-
-    impl <Args, P, F> QuickFn<Args> for WhenFn<Args, P, F>
-        where Args: Clone,
-              P: QuickFn<Args, Output=bool>,
-              F: QuickFn<Args>,
-              F::Output: Into<TestResult>
-    {
-        type Output = TestResult;
-
-        #[inline]
-        fn call(&self, args: Args) -> Self::Output {
-            let fn_args = args.clone();
-            match self.predicate.call(args) {
-                false => TestResult { status: Status::Discard },
-                true  => self.f.call(fn_args).into()
-            }
-        }
-    }
-}
-
-#[cfg(feature = "no_function_casts")]
-mod unstable {
-    use super::*;
-    use quick_fn::QuickFn;
-    use testable::{TestResult, Status};
-
-    impl <Args, G, F> Fn<Args> for ForAllProperty<Args, G, F>
-        where F: QuickFn<Args>
-    {
-        type Output = F::Output;
-
-        #[inline]
-        fn call(&self, args: Args) -> Self::Output {
-            self.f.call(args)
-        }
-    }
-
-    impl <Args, P, F> Fn<Args> for WhenFn<Args, P, F>
-        where Args: Clone,
-              P: Fn<Args, Output=bool>,
-              F: Fn<Args>,
-              F::Output: Into<TestResult>
-    {
-        type Output = TestResult;
-
-        #[inline]
-        fn call(&self, args: Args) -> Self::Output {
-            let fn_args = args.clone();
-            match self.predicate.call(args) {
-                false => TestResult { status: Status::Discard },
-                true  => self.f.call(fn_args).into()
-            }
+    #[inline]
+    fn call(&self, args: Args) -> Self::Output {
+        let fn_args = args.clone();
+        match self.predicate.call(args) {
+            false => TestResult { status: Status::Discard },
+            true  => self.f.call(fn_args).into()
         }
     }
 }
@@ -189,7 +129,7 @@ impl <Args> Property<Args> {
     pub fn when<P: QuickFn<Args, Output=bool>>(p: P) -> When<Args, P>
         where Args: Arbitrary
     {
-        when(p)
+        When { predicate: p, _marker: PhantomData }
     }
 }
 
@@ -211,11 +151,6 @@ mod tests {
     #[test]
     fn test_when_property() {
         Property::<()>::when(|| false).property(|| true);
-    }
-
-    #[test]
-    fn test_nested_when_property() {
-        Property::<()>::for_all(<()>::arbitrary()).property(when(|| true).property(|| false));
     }
 
     #[test]
