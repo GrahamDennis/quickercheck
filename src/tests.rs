@@ -40,9 +40,9 @@ fn prop_oob() {
 #[test]
 fn reverse_single() {
     let prop = Property::<(Vec<usize>,)>
-        // ::when(|xs| xs.len() == 1)
-        // .property(|xs: Vec<_>| xs == xs.clone().into_iter().rev().collect::<Vec<_>>())
-        ::new(|xs| xs == xs.clone().into_iter().rev().collect::<Vec<_>>())
+        ::when(|xs| xs.len() == 1)
+        .property(|xs| xs == xs.clone().into_iter().rev().collect::<Vec<_>>())
+        // ::new(|xs| xs == xs.clone().into_iter().rev().collect::<Vec<_>>())
         .resize(|_| 1);
 
     quickcheck(prop);

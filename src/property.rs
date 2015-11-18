@@ -174,13 +174,14 @@ macro_rules! fn_impls {
         }
 
 
-        impl <P, $($ident: Arbitrary),*> When<($($ident,)*), P> {
+        impl <P, $($ident: Arbitrary + Clone),*> When<($($ident,)*), P> {
             #[inline]
             pub fn property<F, T>(self, f: F)
                 -> ForAllProperty<QuickFnArgs<($($ident,)*)>,
                                   <($($ident,)*) as Arbitrary>::Generator,
                                   WhenFn<($($ident,)*), P, F>>
-                where WhenFn<($($ident,)*), P, F>: QuickFn<($($ident,)*), Output=T>,
+                where P: Fn($($ident),*) -> bool,
+                      F: Fn($($ident),*) -> T,
                       T: Into<TestResult>
             {
                 Property::<QuickFnArgs<($($ident,)*)>>::new(WhenFn {
