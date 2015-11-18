@@ -10,18 +10,18 @@ pub struct GenerateCtx<'a, R: ?Sized + 'a> {
 }
 
 impl <'a, R: ?Sized + 'a> GenerateCtx<'a, R> {
-    fn new(rng: &'a mut R, size: usize) -> Self {
+    pub fn new(rng: &'a mut R, size: usize) -> Self {
         GenerateCtx { rng: rng, size: size }
     }
 
     #[inline]
-    fn chop<'b>(&'b mut self) -> GenerateCtx<'b, R>
+    pub fn chop<'b>(&'b mut self) -> GenerateCtx<'b, R>
         where 'a: 'b
     {
         Self::new(self.rng, self.size/2)
     }
 
-    fn gen_size(&mut self) -> usize
+    pub fn gen_size(&mut self) -> usize
         where R: rand::Rng + Sized
     {
         match self.size {
@@ -75,25 +75,6 @@ macro_rules! tuple_impls {
 }
 
 macro_tuples_impl!{tuple_impls}
-
-pub struct FnGenerator<T> {
-    f: Box<Fn(&mut GenerateCtx<rand::Rng>) -> T>
-}
-
-impl <T> Generator for FnGenerator<T> {
-    type Output = T;
-
-    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> T {
-        let mut boxed_ctx = GenerateCtx { rng: ctx.rng as &mut rand::Rng, size: ctx.size };
-        (self.f)(&mut boxed_ctx)
-    }
-}
-
-impl <T> FnGenerator<T> {
-    pub fn new<F: Fn(&mut GenerateCtx<rand::Rng>) -> T + 'static>(f: F) -> FnGenerator<T> {
-        FnGenerator { f: Box::new(f) }
-    }
-}
 
 pub struct IntegerGenerator<X>(PhantomData<fn() -> X>);
 

@@ -1,37 +1,77 @@
 use generate::GenerateCtx;
-use testable::{IntoTestable, Testable};
+use testable::{IntoTestable, Testable, Status};
 
-use rand::{self};
+use std;
+use rand::{self, Rng, StdRng, SeedableRng};
 
-#[derive(Clone)]
-pub struct CheckResult {
-    num_tests: usize,
-    status: CheckStatus
-}
+pub type Result<T> = std::result::Result<T, QuickCheckError>;
 
-#[derive(Clone)]
-pub enum CheckStatus {
-    Success,
-    GaveUp,
-    Failure {
-        num_shrinks: usize,
-        used_seed: usize,
-        used_size: usize,
-        reason: String
+#[derive(Clone, Debug)]
+pub enum QuickCheckError {
+    GaveUp {
+        successful_tests: usize,
+        attempts: usize
     },
-    NoExpectedFailure,
-    InsufficientCoverage
+    Failure {
+        seed: usize,
+        size: usize
+    },
+    NoExpectedFailure
 }
 
-pub fn quicktest<T: IntoTestable>(t: T) -> CheckResult {
-    let testable = t.into_testable();
-    let mut rng = rand::thread_rng();
-    let mut ctx = GenerateCtx { rng: &mut rng, size: 5 };
-    let _test_result = testable.test(&mut ctx);
-    CheckResult { num_tests: 1 , status: CheckStatus::Success }
+pub struct QuickCheck {
+    tests: usize,
+    max_discard_ratio: usize,
+    rng: rand::ThreadRng
 }
 
-pub fn quickcheck<T: IntoTestable>(t: T) -> CheckResult
+impl QuickCheck
 {
-    quicktest(t)
+    pub fn new() -> Self {
+        QuickCheck {
+            tests: 100,
+            max_discard_ratio: 10,
+            rng: rand::thread_rng()
+        }
+    }
+
+    pub fn quicktest<T: IntoTestable>(&mut self, t: T) -> Result<usize> {
+        let testable = t.into_testable();
+        let max_tests = self.tests * self.max_discard_ratio;
+
+        let mut successful_tests: usize = 0;
+        for _ in 0..max_tests {
+            if successful_tests >= self.tests {
+                return Ok(successful_tests);
+            }
+            let seed = self.rng.gen();
+            let mut test_rng = StdRng::from_seed(&[seed]);
+            let size = self.tests;
+            let mut ctx = GenerateCtx::new(&mut test_rng, size);
+
+            let mut result = testable.test(&mut ctx);
+            match result.status {
+                Status::Pass => successful_tests += 1,
+                Status::Discard => continue,
+                Status::Fail => return Err(QuickCheckError::Failure { seed: seed, size:  size })
+            }
+        }
+
+        Err(QuickCheckError::GaveUp {
+            successful_tests: successful_tests,
+            attempts: max_tests
+        })
+    }
+
+    pub fn quickcheck<T: IntoTestable>(&mut self, t: T) {
+        let _ = ::env_logger::init();
+
+        match self.quicktest(t) {
+            Ok(ntests) => info!("(Passed {} QuickCheck tests.)", ntests),
+            Err(err) => panic!("Failed: {:?}.", err)
+        }
+    }
 }
+
+pub fn quicktest<T: IntoTestable>(t: T) -> Result<usize> { QuickCheck::new().quicktest(t) }
+pub fn quickcheck<T: IntoTestable>(t: T) { QuickCheck::new().quickcheck(t) }

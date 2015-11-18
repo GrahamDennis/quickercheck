@@ -4,6 +4,9 @@ extern crate rand;
 extern crate rand_distributions;
 extern crate num;
 
+extern crate env_logger;
+#[macro_use] extern crate log;
+
 #[macro_use]
 mod macros;
 

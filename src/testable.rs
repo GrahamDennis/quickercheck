@@ -11,6 +11,12 @@ pub struct TestResult {
     pub status: Status,
 }
 
+impl TestResult {
+    pub fn passed() ->  TestResult { TestResult { status: Status::Pass } }
+    pub fn failed() ->  TestResult { TestResult { status: Status::Fail } }
+    pub fn discard() -> TestResult { TestResult { status: Status::Discard } }
+}
+
 #[derive(Copy, Clone)]
 pub enum Status { Pass, Fail, Discard }
 
@@ -29,6 +35,28 @@ pub trait IntoTestable {
     type Testable: Testable;
 
     fn into_testable(self) -> Self::Testable;
+
+    fn resize<F: Fn(usize) -> usize>(self, resize: F) -> ResizedTestable<Self::Testable, F>
+        where Self: Sized
+    {
+        ResizedTestable { testable: self.into_testable(), resize: resize }
+    }
+}
+
+pub struct ResizedTestable<T, F> {
+    testable: T,
+    resize: F
+}
+
+impl <T, F> Testable for ResizedTestable<T, F>
+    where T: Testable,
+          F: Fn(usize) -> usize
+{
+    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
+        let new_size = (self.resize)(ctx.size);
+        let mut new_ctx = GenerateCtx::new(ctx.rng, new_size);
+        self.testable.test(&mut new_ctx)
+    }
 }
 
 impl <T: Testable> IntoTestable for T {
@@ -37,21 +65,6 @@ impl <T: Testable> IntoTestable for T {
     #[inline]
     fn into_testable(self) -> Self { self }
 }
-
-// impl <T: Clone + Into<TestResult>> Testable for T {
-//     #[inline]
-//     fn test<R: Rng>(&self, _: &mut GenerateCtx<R>) -> TestResult {
-//         self.clone().into()
-//     }
-// }
-
-// impl <G: Generator<Output=T>, T: Testable> Testable for G {
-//     #[inline]
-//     fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
-//         let testable = self.generate(ctx);
-//         testable.test(ctx)
-//     }
-// }
 
 impl Testable for TestResult {
     fn test<R: Rng>(&self, _: &mut GenerateCtx<R>) -> TestResult {
@@ -68,7 +81,7 @@ impl Testable for bool {
 impl From<bool> for TestResult {
     #[inline]
     fn from(success: bool) -> TestResult {
-        if success { TestResult { status: Status::Pass } } else { TestResult { status: Status::Fail } }
+        if success { TestResult::passed() } else { TestResult::failed() }
     }
 }
 
@@ -147,10 +160,10 @@ mod tests {
 
     #[test]
     fn when_property_is_testable() {
-        // let predicate_prop = Property::<(usize,)>
-        //     ::when(|s| s > 5)
-        //     .property(|_| true);
-        // quickcheck(&predicate_prop);
+        let predicate_prop = Property::<(usize,)>
+            ::when(|s| s > 5)
+            .property(|_| true);
+        quickcheck(&predicate_prop);
     }
 
     #[test]
