@@ -13,3 +13,6 @@ mod quick_fn;
 mod property;
 mod testable;
 mod quick_check;
+
+#[cfg(test)]
+mod tests;

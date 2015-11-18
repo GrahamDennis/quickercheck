@@ -18,36 +18,10 @@ pub struct ForAllProperty<Args, G, F> {
     _marker: PhantomData<Args>
 }
 
-impl <G, F, T> Testable for ForAllProperty<G::Output, G, F>
-    where G: Generator,
-          F: QuickFn<G::Output, Output=T>,
-          T: Into<TestResult>
-{
-    #[inline]
-    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
-        let args = self.generator.generate(ctx);
-        self.f.call(args).into()
-    }
-}
-
 #[derive(Copy, Clone)]
 pub struct ForAll<Args, G> {
     generator: G,
     _marker: PhantomData<Args>
-}
-
-impl <Args, G> ForAll<Args, G> {
-    #[inline]
-    pub fn property<F: QuickFn<Args>>(self, f: F) -> ForAllProperty<Args, G, F>
-        where F::Output: Into<TestResult>,
-              G: Generator<Output=Args>
-    {
-        ForAllProperty {
-            generator: self.generator,
-            f: f,
-            _marker: PhantomData
-        }
-    }
 }
 
 #[derive(Copy, Clone)]
@@ -63,35 +37,97 @@ pub struct WhenFn<Args, P, F> {
     _marker: PhantomData<Args>
 }
 
-impl <Args, P> When<Args, P> {
-    #[inline]
-    pub fn property<F: QuickFn<Args>>(self, f: F)
-        -> ForAllProperty<Args, Args::Generator, WhenFn<Args, P, F>>
-        where Args: Arbitrary,
-              P: QuickFn<Args, Output=bool>,
-              WhenFn<Args, P, F>: QuickFn<Args>,
-              <WhenFn<Args, P, F> as QuickFn<Args>>::Output: Into<TestResult>
-    {
-        Property::<Args>::new(WhenFn {
-            predicate: self.predicate,
-            f: f,
-            _marker: PhantomData
-        })
+macro_rules! fn_impls {
+    ($($ident:ident),*) => {
+        impl <G, T, F, $($ident),*> Testable for ForAllProperty<($($ident,)*), G, F>
+            where G: Generator<Output=($($ident,)*)>,
+                  F: Fn($($ident),*) -> T,
+                  T: Into<TestResult>
+        {
+            #[inline]
+            #[allow(non_snake_case)]
+            fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
+                let args = self.generator.generate(ctx);
+                let ($($ident,)*) = args;
+                (self.f)($($ident),*).into()
+            }
+        }
+
+        impl <G, $($ident),*> ForAll<($($ident,)*), G> {
+            #[inline]
+            pub fn property<F, T>(self, f: F) -> ForAllProperty<($($ident,)*), G, F>
+                where F: Fn($($ident),*) -> T,
+                      T: Into<TestResult>,
+                      G: Generator<Output=($($ident,)*)>
+            {
+                ForAllProperty {
+                    generator: self.generator,
+                    f: f,
+                    _marker: PhantomData
+                }
+            }
+        }
+
+        impl <$($ident: Arbitrary),*> Property<($($ident,)*)> {
+            pub fn new<F, T>(f: F) -> ForAllProperty<($($ident,)*), <($($ident,)*) as Arbitrary>::Generator, F>
+                where F: Fn($($ident),*) -> T,
+                      T: Into<TestResult>
+            {
+                Property::<($($ident,)*)>::for_all(<($($ident,)*)>::arbitrary()).property(f)
+            }
+
+            pub fn for_all<G: Generator<Output=($($ident,)*)>>(g: G) -> ForAll<($($ident,)*), G> {
+                ForAll {
+                    generator: g,
+                    _marker: PhantomData
+                }
+            }
+
+            pub fn when<P: Fn($($ident),*) -> bool>(p: P) -> When<($($ident,)*), P> {
+                When { predicate: p, _marker: PhantomData }
+            }
+        }
+
+        // impl <P, $($ident: Arbitrary),*> When<($($ident,)*), P> {
+        //     #[inline]
+        //     pub fn property<F, T>(self, f: F)
+        //         -> ForAllProperty<($($ident,)*), <($($ident,)*) as Arbitrary>::Generator, WhenFn<($($ident,)*), P, F>>
+        //         where
+        // }
     }
 }
 
-impl <Args, P, F> IntoTestable for WhenFn<Args, P, F>
-    where Args: Arbitrary,
-          WhenFn<Args, P, F>: QuickFn<Args>,
-          <WhenFn<Args, P, F> as QuickFn<Args>>::Output: Into<TestResult>
-{
-    type Testable = ForAllProperty<Args, Args::Generator, Self>;
+macro_tuples_impl! { fn_impls }
 
-    #[inline]
-    fn into_testable(self) -> Self::Testable {
-        Property::<Args>::new(self)
-    }
-}
+// impl <Args, P> When<Args, P> {
+//     #[inline]
+//     pub fn property<F: QuickFn<Args>>(self, f: F)
+//         -> ForAllProperty<Args, Args::Generator, WhenFn<Args, P, F>>
+//         where Args: Arbitrary,
+//               P: QuickFn<Args, Output=bool>,
+//               WhenFn<Args, P, F>: QuickFn<Args>,
+//               <WhenFn<Args, P, F> as QuickFn<Args>>::Output: Into<TestResult>
+//     {
+//         Property::<Args>::new(WhenFn {
+//             predicate: self.predicate,
+//             f: f,
+//             _marker: PhantomData
+//         })
+//     }
+// }
+
+// impl <Args, P, F> IntoTestable for WhenFn<Args, P, F>
+//     where Args: Arbitrary,
+//           WhenFn<Args, P, F>: QuickFn<Args>,
+//           <WhenFn<Args, P, F> as QuickFn<Args>>::Output: Into<TestResult>
+// {
+//     type Testable = ForAllProperty<Args, Args::Generator, Self>;
+//
+//     #[inline]
+//     fn into_testable(self) -> Self::Testable {
+//         Property::<Args>::new(self)
+//     }
+// }
 
 impl <Args, P, F> QuickFn<Args> for WhenFn<Args, P, F>
     where Args: Clone,
@@ -111,28 +147,6 @@ impl <Args, P, F> QuickFn<Args> for WhenFn<Args, P, F>
     }
 }
 
-impl <Args> Property<Args> {
-    pub fn new<F: QuickFn<Args>>(f: F) -> ForAllProperty<Args, Args::Generator, F>
-        where Args: Arbitrary,
-              F::Output: Into<TestResult>
-    {
-        Property::<Args>::for_all(Args::arbitrary()).property(f)
-    }
-
-    pub fn for_all<G: Generator<Output=Args>>(g: G) -> ForAll<Args, G> {
-        ForAll {
-            generator: g,
-            _marker: PhantomData
-        }
-    }
-
-    pub fn when<P: QuickFn<Args, Output=bool>>(p: P) -> When<Args, P>
-        where Args: Arbitrary
-    {
-        When { predicate: p, _marker: PhantomData }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,10 +162,10 @@ mod tests {
         Property::<()>::for_all(<()>::arbitrary()).property(|| true);
     }
 
-    #[test]
-    fn test_when_property() {
-        Property::<()>::when(|| false).property(|| true);
-    }
+    // #[test]
+    // fn test_when_property() {
+    //     Property::<()>::when(|| false).property(|| true);
+    // }
 
     #[test]
     fn test_generic_property() {
