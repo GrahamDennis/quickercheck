@@ -1,6 +1,7 @@
 use quick_check::{
     quickcheck,
-    quicktest
+    quicktest,
+    QuickCheck
 };
 
 use property::{
@@ -151,8 +152,13 @@ fn testable_unit() {
 }
 
 #[test]
-fn testable_unit_panic() {
-    fn panic() { panic!() }
-    let panic = Property::<()>::new(|| panic!());
-    assert!(quicktest(panic).is_err());
+#[should_panic]
+fn failing_property() {
+    fn all_equal1(x: isize, y: isize, z: isize) -> bool { (x == y) && (y == z) }
+    fn all_equal2(x: isize, y: isize, z: isize) -> bool { 2*x == y + z }
+
+    let prop = Property::<(isize, isize, isize)>
+        ::new(|x, y, z| all_equal1(x, y, z) == all_equal2(x, y, z));
+
+    QuickCheck::new().max_size(10).quickcheck(prop);
 }
