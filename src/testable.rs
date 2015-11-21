@@ -8,21 +8,12 @@ use rand::Rng;
 
 #[derive(Clone)]
 pub struct TestResult {
+    pub input: String,
     pub status: TestStatus,
-    pub args: Vec<String>
 }
 
 #[derive(Copy, Clone)]
 pub enum TestStatus { Pass, Fail, Discard }
-
-impl TestStatus {
-    pub fn into_test_result(self, args: Vec<String>) -> TestResult {
-        TestResult {
-            status: self,
-            args: args
-        }
-    }
-}
 
 pub trait Testable {
     fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult;
@@ -151,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_result_is_testable() {
-        quickcheck(TestResult { status: TestStatus::Pass, args: vec![] });
+        quickcheck(TestResult { status: TestStatus::Pass, input: "".into() });
     }
 
     #[test]

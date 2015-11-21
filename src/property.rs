@@ -65,8 +65,10 @@ impl <G, T, F, Args> Testable for ForAllProperty<QuickFnArgs<Args>, G, F>
     #[inline]
     fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
         let args = self.generator.generate(ctx);
-        let status: TestStatus = self.f.call(args).into();
-        status.into_test_result(vec![])
+        TestResult {
+            input: format!("{:?}", ()),
+            status: self.f.call(args).into()
+        }
     }
 }
 
@@ -117,8 +119,10 @@ macro_rules! fn_impls {
             fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
                 let args = self.generator.generate(ctx);
                 let ($($ident,)*) = args;
-                let status: TestStatus = (self.f)($($ident),*).into();
-                status.into_test_result(vec![])
+                TestResult {
+                    input: format!("{:?}", ()),
+                    status: (self.f)($($ident),*).into()
+                }
             }
         }
 
