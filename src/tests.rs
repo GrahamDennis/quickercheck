@@ -31,11 +31,6 @@ fn prop_oob() {
         zero[0]
     }
     quicktest(prop as fn() -> bool);
-    // match quicktest(prop as fn() -> bool) {
-    //     Ok(n) => panic!("prop_oob should fail with a runtime error \
-    //                      but instead it passed {} tests.", n),
-    //     _ => return
-    // }
 }
 
 #[test]
