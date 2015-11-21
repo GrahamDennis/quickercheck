@@ -1,5 +1,5 @@
 use generate::GenerateCtx;
-use testable::{IntoTestable, Testable, Status};
+use testable::{IntoTestable, Testable, TestStatus};
 
 use std::{self, cmp};
 use rand::{self, Rng, StdRng, SeedableRng};
@@ -94,9 +94,9 @@ impl QuickCheck
 
             let result = testable.test(&mut ctx);
             match result.status {
-                Status::Pass => state.test_passed(),
-                Status::Discard => state.test_discarded(),
-                Status::Fail => return state.test_failed(testable, seed, size)
+                TestStatus::Pass => state.test_passed(),
+                TestStatus::Discard => state.test_discarded(),
+                TestStatus::Fail => return state.test_failed(testable, seed, size)
             }
         }
 

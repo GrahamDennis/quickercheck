@@ -1,6 +1,6 @@
 use arbitrary::Arbitrary;
 use generate::{Generator, GenerateCtx};
-use testable::{Testable, TestResult, Status};
+use testable::{Testable, TestResult, TestStatus};
 use quick_fn::QuickFn;
 
 use std::marker::PhantomData;
@@ -60,12 +60,12 @@ impl <A: Arbitrary> Arbitrary for QuickFnArgs<A> {
 impl <G, T, F, Args> Testable for ForAllProperty<QuickFnArgs<Args>, G, F>
     where G: Generator<Output=Args>,
           F: QuickFn<Args, Output=T>,
-          T: Into<Status>
+          T: Into<TestStatus>
 {
     #[inline]
     fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
         let args = self.generator.generate(ctx);
-        let status: Status = self.f.call(args).into();
+        let status: TestStatus = self.f.call(args).into();
         status.into_test_result(vec![])
     }
 }
@@ -74,7 +74,7 @@ impl <G, Args> ForAll<QuickFnArgs<Args>, G> {
     #[inline]
     pub fn property<F, T>(self, f: F) -> ForAllProperty<QuickFnArgs<Args>, G, F>
         where F: QuickFn<Args, Output=T>,
-              T: Into<Status>,
+              T: Into<TestStatus>,
               G: Generator<Output=Args>
     {
         ForAllProperty {
@@ -88,7 +88,7 @@ impl <G, Args> ForAll<QuickFnArgs<Args>, G> {
 impl <Args: Arbitrary> Property<QuickFnArgs<Args>> {
     pub fn new<F, T>(f: F) -> ForAllProperty<QuickFnArgs<Args>, Args::Generator, F>
         where F: QuickFn<Args, Output=T>,
-              T: Into<Status>
+              T: Into<TestStatus>
     {
         Property::<QuickFnArgs<Args>>::for_all(<Args>::arbitrary()).property(f)
     }
@@ -110,14 +110,14 @@ macro_rules! fn_impls {
         impl <G, T, F, $($ident),*> Testable for ForAllProperty<($($ident,)*), G, F>
             where G: Generator<Output=($($ident,)*)>,
                   F: Fn($($ident),*) -> T,
-                  T: Into<Status>
+                  T: Into<TestStatus>
         {
             #[inline]
             #[allow(non_snake_case)]
             fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
                 let args = self.generator.generate(ctx);
                 let ($($ident,)*) = args;
-                let status: Status = (self.f)($($ident),*).into();
+                let status: TestStatus = (self.f)($($ident),*).into();
                 status.into_test_result(vec![])
             }
         }
@@ -126,7 +126,7 @@ macro_rules! fn_impls {
             #[inline]
             pub fn property<F, T>(self, f: F) -> ForAllProperty<($($ident,)*), G, F>
                 where F: Fn($($ident),*) -> T,
-                      T: Into<Status>,
+                      T: Into<TestStatus>,
                       G: Generator<Output=($($ident,)*)>
             {
                 ForAllProperty {
@@ -140,7 +140,7 @@ macro_rules! fn_impls {
         impl <$($ident: Arbitrary),*> Property<($($ident,)*)> {
             pub fn new<F, T>(f: F) -> ForAllProperty<($($ident,)*), <($($ident,)*) as Arbitrary>::Generator, F>
                 where F: Fn($($ident),*) -> T,
-                      T: Into<Status>
+                      T: Into<TestStatus>
             {
                 Property::<($($ident,)*)>::for_all(<($($ident,)*)>::arbitrary()).property(f)
             }
@@ -160,16 +160,16 @@ macro_rules! fn_impls {
         impl <P, F, T, $($ident: Clone),*> QuickFn<($($ident,)*)> for WhenFn<($($ident,)*), P, F>
             where P: Fn($($ident),*) -> bool,
                   F: Fn($($ident),*) -> T,
-                  T: Into<Status>
+                  T: Into<TestStatus>
         {
-            type Output = Status;
+            type Output = TestStatus;
 
             #[inline]
             #[allow(non_snake_case)]
             fn call(&self, args: ($($ident,)*)) -> Self::Output {
                 let ($($ident,)*) = args;
                 match (self.predicate)($($ident.clone()),*) {
-                    false => Status::Discard,
+                    false => TestStatus::Discard,
                     true  => (self.f)($($ident),*).into()
                 }
             }
@@ -184,7 +184,7 @@ macro_rules! fn_impls {
                                   WhenFn<($($ident,)*), P, F>>
                 where P: Fn($($ident),*) -> bool,
                       F: Fn($($ident),*) -> T,
-                      T: Into<Status>
+                      T: Into<TestStatus>
             {
                 Property::<QuickFnArgs<($($ident,)*)>>::new(WhenFn {
                     predicate: self.predicate,

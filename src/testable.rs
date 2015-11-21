@@ -8,14 +8,14 @@ use rand::Rng;
 
 #[derive(Clone)]
 pub struct TestResult {
-    pub status: Status,
+    pub status: TestStatus,
     pub args: Vec<String>
 }
 
 #[derive(Copy, Clone)]
-pub enum Status { Pass, Fail, Discard }
+pub enum TestStatus { Pass, Fail, Discard }
 
-impl Status {
+impl TestStatus {
     pub fn into_test_result(self, args: Vec<String>) -> TestResult {
         TestResult {
             status: self,
@@ -92,43 +92,43 @@ impl Testable for TestResult {
     }
 }
 
-impl From<bool> for Status {
+impl From<bool> for TestStatus {
     #[inline]
-    fn from(success: bool) -> Status {
-        if success { Status::Pass } else { Status::Fail }
+    fn from(success: bool) -> TestStatus {
+        if success { TestStatus::Pass } else { TestStatus::Fail }
     }
 }
 
-impl <T: Into<Status>, Err> From<Result<T, Err>> for Status {
+impl <T: Into<TestStatus>, Err> From<Result<T, Err>> for TestStatus {
     #[inline]
-    fn from(result: Result<T, Err>) -> Status {
+    fn from(result: Result<T, Err>) -> TestStatus {
         match result {
             Ok(t) => t.into(),
-            Err(_) => Status::Fail
+            Err(_) => TestStatus::Fail
         }
     }
 }
 
-impl <'a, T: Into<Status> + Clone, Err> From<&'a Result<T, Err>> for Status {
+impl <'a, T: Into<TestStatus> + Clone, Err> From<&'a Result<T, Err>> for TestStatus {
     #[inline]
-    fn from(result: &'a Result<T, Err>) -> Status {
+    fn from(result: &'a Result<T, Err>) -> TestStatus {
         match *result {
             Ok(ref t) => t.clone().into(),
-            Err(_) => Status::Fail
+            Err(_) => TestStatus::Fail
         }
     }
 }
 
-impl From<()> for Status {
+impl From<()> for TestStatus {
     #[inline]
-    fn from(_: ()) -> Status {
-        Status::Pass
+    fn from(_: ()) -> TestStatus {
+        TestStatus::Pass
     }
 }
 
 macro_rules! fn_impls {
     ($($name:ident),*) => {
-        impl <Output: Into<Status>, $($name: Arbitrary),*> IntoTestable for fn($($name),*) -> Output
+        impl <Output: Into<TestStatus>, $($name: Arbitrary),*> IntoTestable for fn($($name),*) -> Output
         {
             type Testable = ForAllProperty<($($name,)*), <($($name,)*) as Arbitrary>::Generator, Self>;
 
@@ -151,24 +151,24 @@ mod tests {
 
     #[test]
     fn test_result_is_testable() {
-        quickcheck(TestResult { status: Status::Pass, args: vec![] });
+        quickcheck(TestResult { status: TestStatus::Pass, args: vec![] });
     }
 
     #[test]
     fn property_is_testable() {
-        let simple_prop = Property::<()>::new(|| Status::Pass );
+        let simple_prop = Property::<()>::new(|| TestStatus::Pass );
         quickcheck(simple_prop);
     }
 
     #[test]
     fn property_is_testable_by_reference() {
-        let simple_prop = Property::<()>::new(|| Status::Pass );
+        let simple_prop = Property::<()>::new(|| TestStatus::Pass );
         quickcheck(&simple_prop);
     }
 
     #[test]
     fn property_with_args_is_testable() {
-        let my_prop = Property::<(usize,)>::new(|_| Status::Pass );
+        let my_prop = Property::<(usize,)>::new(|_| TestStatus::Pass );
         quickcheck(&my_prop);
     }
 
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn cast_fn_is_testable2() {
-        fn simple_prop() -> Status { Status::Pass };
-        quickcheck(simple_prop as fn() -> Status);
+        fn simple_prop() -> TestStatus { TestStatus::Pass };
+        quickcheck(simple_prop as fn() -> TestStatus);
     }
 }
