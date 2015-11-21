@@ -6,19 +6,23 @@ use std::convert::{Into, From};
 
 use rand::Rng;
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct TestResult {
     pub status: Status,
-}
-
-impl TestResult {
-    pub fn passed() ->  TestResult { TestResult { status: Status::Pass } }
-    pub fn failed() ->  TestResult { TestResult { status: Status::Fail } }
-    pub fn discard() -> TestResult { TestResult { status: Status::Discard } }
+    pub args: Vec<String>
 }
 
 #[derive(Copy, Clone)]
 pub enum Status { Pass, Fail, Discard }
+
+impl Status {
+    pub fn into_test_result(self, args: Vec<String>) -> TestResult {
+        TestResult {
+            status: self,
+            args: args
+        }
+    }
+}
 
 pub trait Testable {
     fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult;
@@ -84,61 +88,47 @@ impl <T: Testable> IntoTestable for T {
 
 impl Testable for TestResult {
     fn test<R: Rng>(&self, _: &mut GenerateCtx<R>) -> TestResult {
-        *self
+        self.clone()
     }
 }
 
-impl Testable for bool {
-    fn test<R: Rng>(&self, _: &mut GenerateCtx<R>) -> TestResult {
-        (*self).into()
-    }
-}
-
-impl From<bool> for TestResult {
+impl From<bool> for Status {
     #[inline]
-    fn from(success: bool) -> TestResult {
-        if success { TestResult::passed() } else { TestResult::failed() }
+    fn from(success: bool) -> Status {
+        if success { Status::Pass } else { Status::Fail }
     }
 }
 
-impl <T, Err> Testable for Result<T, Err>
-    where for<'a> &'a Result<T, Err>: Into<TestResult>
-{
-    fn test<R: Rng>(&self, _: &mut GenerateCtx<R>) -> TestResult {
-        self.into()
-    }
-}
-
-impl <T: Into<TestResult>, Err> From<Result<T, Err>> for TestResult {
+impl <T: Into<Status>, Err> From<Result<T, Err>> for Status {
     #[inline]
-    fn from(result: Result<T, Err>) -> TestResult {
+    fn from(result: Result<T, Err>) -> Status {
         match result {
             Ok(t) => t.into(),
-            Err(_) => TestResult::failed()
+            Err(_) => Status::Fail
         }
     }
 }
 
-impl <'a, T: Into<TestResult> + Clone, Err> From<&'a Result<T, Err>> for TestResult {
+impl <'a, T: Into<Status> + Clone, Err> From<&'a Result<T, Err>> for Status {
     #[inline]
-    fn from(result: &'a Result<T, Err>) -> TestResult {
+    fn from(result: &'a Result<T, Err>) -> Status {
         match *result {
             Ok(ref t) => t.clone().into(),
-            Err(_) => TestResult::failed()
+            Err(_) => Status::Fail
         }
     }
 }
 
-impl From<()> for TestResult {
+impl From<()> for Status {
     #[inline]
-    fn from(_: ()) -> TestResult {
-        TestResult::passed()
+    fn from(_: ()) -> Status {
+        Status::Pass
     }
 }
 
 macro_rules! fn_impls {
     ($($name:ident),*) => {
-        impl <Output: Into<TestResult>, $($name: Arbitrary),*> IntoTestable for fn($($name),*) -> Output
+        impl <Output: Into<Status>, $($name: Arbitrary),*> IntoTestable for fn($($name),*) -> Output
         {
             type Testable = ForAllProperty<($($name,)*), <($($name,)*) as Arbitrary>::Generator, Self>;
 
@@ -161,29 +151,24 @@ mod tests {
 
     #[test]
     fn test_result_is_testable() {
-        quickcheck(TestResult { status: Status::Pass });
-    }
-
-    #[test]
-    fn into_test_result_is_testable() {
-        quickcheck(true);
+        quickcheck(TestResult { status: Status::Pass, args: vec![] });
     }
 
     #[test]
     fn property_is_testable() {
-        let simple_prop = Property::<()>::new(|| TestResult { status: Status::Pass });
+        let simple_prop = Property::<()>::new(|| Status::Pass );
         quickcheck(simple_prop);
     }
 
     #[test]
     fn property_is_testable_by_reference() {
-        let simple_prop = Property::<()>::new(|| TestResult { status: Status::Pass });
+        let simple_prop = Property::<()>::new(|| Status::Pass );
         quickcheck(&simple_prop);
     }
 
     #[test]
     fn property_with_args_is_testable() {
-        let my_prop = Property::<(usize,)>::new(|_| TestResult { status: Status::Pass });
+        let my_prop = Property::<(usize,)>::new(|_| Status::Pass );
         quickcheck(&my_prop);
     }
 
@@ -228,13 +213,7 @@ mod tests {
 
     #[test]
     fn cast_fn_is_testable2() {
-        fn simple_prop() -> TestResult { TestResult { status: Status::Pass }};
-        quickcheck(simple_prop as fn() -> TestResult);
-    }
-
-    #[test]
-    fn result_is_testable() {
-        let result: Result<bool, String> = Ok(true);
-        quickcheck(result);
+        fn simple_prop() -> Status { Status::Pass };
+        quickcheck(simple_prop as fn() -> Status);
     }
 }

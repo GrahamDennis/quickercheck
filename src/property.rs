@@ -60,12 +60,13 @@ impl <A: Arbitrary> Arbitrary for QuickFnArgs<A> {
 impl <G, T, F, Args> Testable for ForAllProperty<QuickFnArgs<Args>, G, F>
     where G: Generator<Output=Args>,
           F: QuickFn<Args, Output=T>,
-          T: Into<TestResult>
+          T: Into<Status>
 {
     #[inline]
     fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
         let args = self.generator.generate(ctx);
-        self.f.call(args).into()
+        let status: Status = self.f.call(args).into();
+        status.into_test_result(vec![])
     }
 }
 
@@ -73,7 +74,7 @@ impl <G, Args> ForAll<QuickFnArgs<Args>, G> {
     #[inline]
     pub fn property<F, T>(self, f: F) -> ForAllProperty<QuickFnArgs<Args>, G, F>
         where F: QuickFn<Args, Output=T>,
-              T: Into<TestResult>,
+              T: Into<Status>,
               G: Generator<Output=Args>
     {
         ForAllProperty {
@@ -87,7 +88,7 @@ impl <G, Args> ForAll<QuickFnArgs<Args>, G> {
 impl <Args: Arbitrary> Property<QuickFnArgs<Args>> {
     pub fn new<F, T>(f: F) -> ForAllProperty<QuickFnArgs<Args>, Args::Generator, F>
         where F: QuickFn<Args, Output=T>,
-              T: Into<TestResult>
+              T: Into<Status>
     {
         Property::<QuickFnArgs<Args>>::for_all(<Args>::arbitrary()).property(f)
     }
@@ -109,14 +110,15 @@ macro_rules! fn_impls {
         impl <G, T, F, $($ident),*> Testable for ForAllProperty<($($ident,)*), G, F>
             where G: Generator<Output=($($ident,)*)>,
                   F: Fn($($ident),*) -> T,
-                  T: Into<TestResult>
+                  T: Into<Status>
         {
             #[inline]
             #[allow(non_snake_case)]
             fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
                 let args = self.generator.generate(ctx);
                 let ($($ident,)*) = args;
-                (self.f)($($ident),*).into()
+                let status: Status = (self.f)($($ident),*).into();
+                status.into_test_result(vec![])
             }
         }
 
@@ -124,7 +126,7 @@ macro_rules! fn_impls {
             #[inline]
             pub fn property<F, T>(self, f: F) -> ForAllProperty<($($ident,)*), G, F>
                 where F: Fn($($ident),*) -> T,
-                      T: Into<TestResult>,
+                      T: Into<Status>,
                       G: Generator<Output=($($ident,)*)>
             {
                 ForAllProperty {
@@ -138,7 +140,7 @@ macro_rules! fn_impls {
         impl <$($ident: Arbitrary),*> Property<($($ident,)*)> {
             pub fn new<F, T>(f: F) -> ForAllProperty<($($ident,)*), <($($ident,)*) as Arbitrary>::Generator, F>
                 where F: Fn($($ident),*) -> T,
-                      T: Into<TestResult>
+                      T: Into<Status>
             {
                 Property::<($($ident,)*)>::for_all(<($($ident,)*)>::arbitrary()).property(f)
             }
@@ -158,16 +160,16 @@ macro_rules! fn_impls {
         impl <P, F, T, $($ident: Clone),*> QuickFn<($($ident,)*)> for WhenFn<($($ident,)*), P, F>
             where P: Fn($($ident),*) -> bool,
                   F: Fn($($ident),*) -> T,
-                  T: Into<TestResult>
+                  T: Into<Status>
         {
-            type Output = TestResult;
+            type Output = Status;
 
             #[inline]
             #[allow(non_snake_case)]
             fn call(&self, args: ($($ident,)*)) -> Self::Output {
                 let ($($ident,)*) = args;
                 match (self.predicate)($($ident.clone()),*) {
-                    false => TestResult { status: Status::Discard },
+                    false => Status::Discard,
                     true  => (self.f)($($ident),*).into()
                 }
             }
@@ -182,7 +184,7 @@ macro_rules! fn_impls {
                                   WhenFn<($($ident,)*), P, F>>
                 where P: Fn($($ident),*) -> bool,
                       F: Fn($($ident),*) -> T,
-                      T: Into<TestResult>
+                      T: Into<Status>
             {
                 Property::<QuickFnArgs<($($ident,)*)>>::new(WhenFn {
                     predicate: self.predicate,
