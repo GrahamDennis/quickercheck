@@ -1,0 +1,18 @@
+[package]
+name = "quickercheck"
+version = "0.1.0"
+authors = ["Graham Dennis <graham.dennis@gmail.com>"]
+description = "Automatic property-based testing."
+homepage = "https://github.com/GrahamDenis/quickercheck"
+repository = "https://github.com/GrahamDennis/quickercheck"
+license = "Unlicense/MIT"
+
+[dependencies]
+rand = "0.3"
+num = "0.1"
+env_logger = "0.3"
+log = "0.3"
+
+[features]
+default = []
+no_function_casts = []
