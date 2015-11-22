@@ -146,7 +146,7 @@ impl QuickCheck
             Ok(ntests) => info!("(Passed {} QuickCheck tests.)", ntests),
             Err(err) => {
                 match err {
-                    QuickCheckError::Failure{ successful_tests: successful_tests, input: input, .. } =>
+                    QuickCheckError::Failure{ successful_tests, input, .. } =>
                         panic!("Falsifiable after {} tests with input {}", successful_tests, input),
                     _ => panic!("Failed: {:?}", err)
                 }
