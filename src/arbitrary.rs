@@ -17,12 +17,16 @@ use std::collections::{
     LinkedList,
     VecDeque
 };
-use std::iter::FromIterator;
+use std::iter::{self, FromIterator};
 
-pub trait Arbitrary: Sized {
+pub trait Arbitrary: Sized + 'static {
     type Generator: Generator<Output=Self>;
 
     fn arbitrary() -> Self::Generator;
+    fn shrink(self) -> Box<Iterator<Item=Self>>
+    {
+        Box::new(iter::empty())
+    }
 }
 
 macro_rules! tuple_impls {
