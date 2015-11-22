@@ -9,12 +9,14 @@ extern crate env_logger;
 #[macro_use]
 mod macros;
 
-mod generate;
-mod arbitrary;
+pub mod generate;
+pub mod arbitrary;
 mod quick_fn;
-mod property;
-mod testable;
-mod quick_check;
+pub mod property;
+pub mod testable;
+pub mod quick_check;
+
+pub use quick_check::{quickcheck, quicktest, QuickCheck};
 
 #[cfg(test)]
 mod tests;
