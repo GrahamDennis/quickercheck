@@ -155,5 +155,22 @@ fn failing_property() {
     let prop = Property::<(isize, isize, isize)>
         ::new(|x, y, z| all_equal1(x, y, z) == all_equal2(x, y, z));
 
-    QuickCheck::new().max_size(10).quickcheck(prop);
+    QuickCheck::new().max_size(5).quickcheck(prop);
+}
+
+#[test]
+#[should_panic]
+fn failing_reverse_combine() {
+    fn concat(xs: Vec<isize>, ys: Vec<isize>) -> Vec<isize> {
+        xs.into_iter().chain(ys.into_iter()).collect()
+    }
+    fn reverse(xs: Vec<isize>) -> Vec<isize> {
+        xs.into_iter().rev().collect()
+    }
+
+    fn reverse_combine(xs: Vec<isize>, ys: Vec<isize>) -> bool {
+        reverse(concat(xs.clone(), ys.clone())) == concat(reverse(xs.clone()), reverse(ys.clone()))
+    }
+
+    quickcheck(reverse_combine as fn(Vec<isize>, Vec<isize>) -> bool);
 }

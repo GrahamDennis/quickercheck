@@ -4,6 +4,7 @@ use testable::{Testable, TestResult, TestStatus};
 use quick_fn::QuickFn;
 
 use std::marker::PhantomData;
+use std::fmt::Debug;
 use rand::Rng;
 
 #[derive(Copy, Clone)]
@@ -57,7 +58,7 @@ impl <A: Arbitrary> Arbitrary for QuickFnArgs<A> {
     }
 }
 
-impl <G, T, F, Args> Testable for ForAllProperty<QuickFnArgs<Args>, G, F>
+impl <G, T, F, Args: Debug> Testable for ForAllProperty<QuickFnArgs<Args>, G, F>
     where G: Generator<Output=Args>,
           F: QuickFn<Args, Output=T>,
           T: Into<TestStatus>
@@ -66,7 +67,7 @@ impl <G, T, F, Args> Testable for ForAllProperty<QuickFnArgs<Args>, G, F>
     fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
         let args = self.generator.generate(ctx);
         TestResult {
-            input: format!("{:?}", ()),
+            input: format!("{:?}", &args),
             status: self.f.call(args).into()
         }
     }
@@ -109,7 +110,7 @@ impl <Args: Arbitrary> Property<QuickFnArgs<Args>> {
 
 macro_rules! fn_impls {
     ($($ident:ident),*) => {
-        impl <G, T, F, $($ident),*> Testable for ForAllProperty<($($ident,)*), G, F>
+        impl <G, T, F, $($ident: Debug),*> Testable for ForAllProperty<($($ident,)*), G, F>
             where G: Generator<Output=($($ident,)*)>,
                   F: Fn($($ident),*) -> T,
                   T: Into<TestStatus>
@@ -120,7 +121,7 @@ macro_rules! fn_impls {
                 let args = self.generator.generate(ctx);
                 let ($($ident,)*) = args;
                 TestResult {
-                    input: format!("{:?}", ()),
+                    input: format!("{:?}", ($(&$ident,)*)),
                     status: (self.f)($($ident),*).into()
                 }
             }

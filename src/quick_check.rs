@@ -1,8 +1,9 @@
 use generate::GenerateCtx;
-use testable::{IntoTestable, Testable, TestStatus};
+use testable::{IntoTestable, Testable, TestStatus, TestResult};
 
 use std::{self, cmp};
 use rand::{self, Rng, StdRng, SeedableRng};
+use log::LogLevel;
 
 pub type Result<T> = std::result::Result<T, QuickCheckError>;
 
@@ -13,6 +14,8 @@ pub enum QuickCheckError {
         attempts: usize
     },
     Failure {
+        input: String,
+        successful_tests: usize,
         seed: usize,
         size: usize
     },
@@ -52,10 +55,15 @@ impl QuickCheckState {
         })
     }
 
-    fn test_failed<T: Testable>(&self, testable: T, seed: usize, size: usize) -> Result<usize> {
+    fn test_failed<T: Testable>(&self, testable: T, result: TestResult, seed: usize, size: usize) -> Result<usize> {
         match testable.is_expected_to_fail() {
-            false => Err(QuickCheckError::Failure { seed: seed, size: size }),
-            true => Ok(self.successful_tests)
+            true => Ok(self.successful_tests),
+            false => Err(QuickCheckError::Failure {
+                input: result.input,
+                successful_tests: self.successful_tests,
+                seed: seed,
+                size: size
+            })
         }
     }
 }
@@ -93,14 +101,24 @@ impl QuickCheck
             let mut ctx = GenerateCtx::new(&mut test_rng, size);
 
             let result = testable.test(&mut ctx);
+            self.log_result(&result);
+
             match result.status {
                 TestStatus::Pass => state.test_passed(),
                 TestStatus::Discard => state.test_discarded(),
-                TestStatus::Fail => return state.test_failed(testable, seed, size)
+                TestStatus::Fail => return state.test_failed(testable, result, seed, size)
             }
         }
 
         state.gave_up_after(max_tests)
+    }
+
+    fn log_result(&self, result: &TestResult) {
+        let log_level = match result.status {
+            TestStatus::Discard => LogLevel::Trace,
+            _ => LogLevel::Debug
+        };
+        log!(log_level, "{:?}: {}", result.status, result.input);
     }
 
     fn size(&self, state: &QuickCheckState) -> usize {
@@ -126,7 +144,13 @@ impl QuickCheck
 
         match self.quicktest(t) {
             Ok(ntests) => info!("(Passed {} QuickCheck tests.)", ntests),
-            Err(err) => panic!("Failed: {:?}.", err)
+            Err(err) => {
+                match err {
+                    QuickCheckError::Failure{ successful_tests: successful_tests, input: input, .. } =>
+                        panic!("Falsifiable after {} tests with input {}", successful_tests, input),
+                    _ => panic!("Failed: {:?}", err)
+                }
+            }
         }
     }
 }

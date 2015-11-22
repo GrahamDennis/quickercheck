@@ -3,6 +3,7 @@ use arbitrary::Arbitrary;
 use property::{Property, ForAllProperty};
 
 use std::convert::{Into, From};
+use std::fmt::Debug;
 
 use rand::Rng;
 
@@ -12,7 +13,7 @@ pub struct TestResult {
     pub status: TestStatus,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum TestStatus { Pass, Fail, Discard }
 
 pub trait Testable {
@@ -119,7 +120,7 @@ impl From<()> for TestStatus {
 
 macro_rules! fn_impls {
     ($($name:ident),*) => {
-        impl <Output: Into<TestStatus>, $($name: Arbitrary),*> IntoTestable for fn($($name),*) -> Output
+        impl <Output: Into<TestStatus>, $($name: Arbitrary + Debug),*> IntoTestable for fn($($name),*) -> Output
         {
             type Testable = ForAllProperty<($($name,)*), <($($name,)*) as Arbitrary>::Generator, Self>;
 
