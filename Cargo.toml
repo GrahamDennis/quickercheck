@@ -1,6 +1,6 @@
 [package]
 name = "quickercheck"
-version = "0.1.0"
+version = "0.1.2"
 authors = ["Graham Dennis <graham.dennis@gmail.com>"]
 description = "Automatic property-based testing."
 homepage = "https://github.com/GrahamDenis/quickercheck"

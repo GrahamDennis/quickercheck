@@ -18,6 +18,7 @@ use std::collections::{
     VecDeque
 };
 use std::iter::{self, FromIterator};
+use num::bigint::{BigInt, BigUint};
 
 pub trait Arbitrary: Sized + 'static {
     type Generator: Generator<Output=Self>;
@@ -72,8 +73,8 @@ macro_rules! uint_impls {
     }
 }
 
-int_impls!  {i8, i16, i32, i64, isize}
-uint_impls! {u8, u16, u32, u64, usize}
+int_impls!  {i8, i16, i32, i64, isize, BigInt}
+uint_impls! {u8, u16, u32, u64, usize, BigUint}
 
 macro_rules! generic_impls {
     ($($container:ident < $($placeholder:ident),* >),*) => {
