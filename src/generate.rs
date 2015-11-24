@@ -3,6 +3,7 @@ use std::iter::FromIterator;
 
 use rand;
 use num::traits::FromPrimitive;
+use num::bigint::{BigInt, BigUint};
 
 pub struct GenerateCtx<'a, R: ?Sized + 'a> {
     pub rng: &'a mut R,
@@ -107,6 +108,16 @@ macro_rules! int_impls {
 
 int_impls! { i8, i16, i32, i64, isize }
 
+impl Generator for IntegerGenerator<BigInt>
+{
+    type Output = BigInt;
+
+    #[inline]
+    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> BigInt {
+        BigInt::from_i64(IntegerGenerator::<i64>::new().generate(ctx)).unwrap()
+    }
+}
+
 pub struct UnsignedIntegerGenerator<X>(PhantomData<fn() -> X>);
 
 impl <X> UnsignedIntegerGenerator<X> where UnsignedIntegerGenerator<X>: Generator
@@ -135,6 +146,16 @@ macro_rules! uint_impls {
 }
 
 uint_impls! { u8, u16, u32, u64, usize, i8, i16, i32, i64, isize }
+
+impl Generator for UnsignedIntegerGenerator<BigUint>
+{
+    type Output = BigUint;
+
+    #[inline]
+    fn generate<R: rand::Rng>(&self, ctx: &mut GenerateCtx<R>) -> BigUint {
+        BigUint::from_u64(UnsignedIntegerGenerator::<u64>::new().generate(ctx)).unwrap()
+    }
+}
 
 pub struct FromIteratorGenerator<C, G> {
     generator: G,
