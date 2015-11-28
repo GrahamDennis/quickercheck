@@ -10,6 +10,7 @@ extern crate env_logger;
 mod macros;
 
 pub mod generate;
+pub mod shrink;
 pub mod arbitrary;
 mod quick_fn;
 pub mod rose;

@@ -1,5 +1,6 @@
 use arbitrary::Arbitrary;
 use generate::{Generator, GenerateCtx};
+use shrink::{self, Shrink};
 use testable::{Testable, TestResult, TestStatus};
 use quick_fn::QuickFn;
 use rose::Rose;
@@ -14,15 +15,17 @@ pub struct Property<Args> {
 }
 
 #[derive(Copy, Clone)]
-pub struct ForAllProperty<Args, G, F> {
+pub struct ForAllProperty<Args, G, S, F> {
     generator: G,
+    shrinker: S,
     f: F,
     _marker: PhantomData<Args>
 }
 
 #[derive(Copy, Clone)]
-pub struct ForAll<Args, G> {
+pub struct ForAll<Args, G, S> {
     generator: G,
+    shrinker: S,
     _marker: PhantomData<Args>
 }
 
@@ -53,14 +56,18 @@ impl <A: Generator> Generator for QuickFnArgs<A> {
 
 impl <A: Arbitrary> Arbitrary for QuickFnArgs<A> {
     type Generator = QuickFnArgs<A::Generator>;
+    type Shrink = shrink::Empty<Self>;
 
     fn arbitrary() -> Self::Generator {
         QuickFnArgs(A::arbitrary())
     }
+
+    #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
 }
 
-impl <G, T, F, Args: Debug> Testable for ForAllProperty<QuickFnArgs<Args>, G, F>
+impl <G, S, T, F, Args: Debug> Testable for ForAllProperty<QuickFnArgs<Args>, G, S, F>
     where G: Generator<Output=Args>,
+          S: Shrink<Item=Args>,
           F: QuickFn<Args, Output=T>,
           T: Into<TestStatus>
 {
@@ -74,15 +81,17 @@ impl <G, T, F, Args: Debug> Testable for ForAllProperty<QuickFnArgs<Args>, G, F>
     }
 }
 
-impl <G, Args> ForAll<QuickFnArgs<Args>, G> {
+impl <G, S, Args> ForAll<QuickFnArgs<Args>, G, S> {
     #[inline]
-    pub fn property<F, T>(self, f: F) -> ForAllProperty<QuickFnArgs<Args>, G, F>
+    pub fn property<F, T>(self, f: F) -> ForAllProperty<QuickFnArgs<Args>, G, S, F>
         where F: QuickFn<Args, Output=T>,
+              S: Shrink<Item=Args>,
               T: Into<TestStatus>,
               G: Generator<Output=Args>
     {
         ForAllProperty {
             generator: self.generator,
+            shrinker: self.shrinker,
             f: f,
             _marker: PhantomData
         }
@@ -90,16 +99,17 @@ impl <G, Args> ForAll<QuickFnArgs<Args>, G> {
 }
 
 impl <Args: Arbitrary> Property<QuickFnArgs<Args>> {
-    pub fn new<F, T>(f: F) -> ForAllProperty<QuickFnArgs<Args>, Args::Generator, F>
+    pub fn new<F, T>(f: F) -> ForAllProperty<QuickFnArgs<Args>, Args::Generator, shrink::Empty<Args>, F>
         where F: QuickFn<Args, Output=T>,
               T: Into<TestStatus>
     {
         Property::<QuickFnArgs<Args>>::for_all(<Args>::arbitrary()).property(f)
     }
 
-    pub fn for_all<G: Generator<Output=Args>>(g: G) -> ForAll<QuickFnArgs<Args>, G> {
+    pub fn for_all<G: Generator<Output=Args>>(g: G) -> ForAll<QuickFnArgs<Args>, G, shrink::Empty<Args>> {
         ForAll {
             generator: g,
+            shrinker: shrink::Empty::empty(),
             _marker: PhantomData
         }
     }
@@ -111,8 +121,9 @@ impl <Args: Arbitrary> Property<QuickFnArgs<Args>> {
 
 macro_rules! fn_impls {
     ($($ident:ident),*) => {
-        impl <G, T, F, $($ident: Debug),*> Testable for ForAllProperty<($($ident,)*), G, F>
+        impl <G, S, T, F, $($ident: Debug),*> Testable for ForAllProperty<($($ident,)*), G, S, F>
             where G: Generator<Output=($($ident,)*)>,
+                  S: Shrink<Item=($($ident,)*)>,
                   F: Fn($($ident),*) -> T,
                   T: Into<TestStatus>
         {
@@ -128,15 +139,16 @@ macro_rules! fn_impls {
             }
         }
 
-        impl <G, $($ident),*> ForAll<($($ident,)*), G> {
+        impl <G, S, $($ident),*> ForAll<($($ident,)*), G, S> {
             #[inline]
-            pub fn property<F, T>(self, f: F) -> ForAllProperty<($($ident,)*), G, F>
+            pub fn property<F, T>(self, f: F) -> ForAllProperty<($($ident,)*), G, S, F>
                 where F: Fn($($ident),*) -> T,
                       T: Into<TestStatus>,
                       G: Generator<Output=($($ident,)*)>
             {
                 ForAllProperty {
                     generator: self.generator,
+                    shrinker: self.shrinker,
                     f: f,
                     _marker: PhantomData
                 }
@@ -144,16 +156,21 @@ macro_rules! fn_impls {
         }
 
         impl <$($ident: Arbitrary),*> Property<($($ident,)*)> {
-            pub fn new<F, T>(f: F) -> ForAllProperty<($($ident,)*), <($($ident,)*) as Arbitrary>::Generator, F>
+            pub fn new<F, T>(f: F) -> ForAllProperty<
+                                            ($($ident,)*),
+                                            <($($ident,)*) as Arbitrary>::Generator,
+                                            shrink::Empty<($($ident,)*)>,
+                                            F>
                 where F: Fn($($ident),*) -> T,
                       T: Into<TestStatus>
             {
                 Property::<($($ident,)*)>::for_all(<($($ident,)*)>::arbitrary()).property(f)
             }
 
-            pub fn for_all<G: Generator<Output=($($ident,)*)>>(g: G) -> ForAll<($($ident,)*), G> {
+            pub fn for_all<G: Generator<Output=($($ident,)*)>>(g: G) -> ForAll<($($ident,)*), G, shrink::Empty<($($ident,)*)>> {
                 ForAll {
                     generator: g,
+                    shrinker: shrink::Empty::empty(),
                     _marker: PhantomData
                 }
             }
@@ -187,6 +204,7 @@ macro_rules! fn_impls {
             pub fn property<F, T>(self, f: F)
                 -> ForAllProperty<QuickFnArgs<($($ident,)*)>,
                                   <($($ident,)*) as Arbitrary>::Generator,
+                                  shrink::Empty<($($ident,)*)>,
                                   WhenFn<($($ident,)*), P, F>>
                 where P: Fn($($ident),*) -> bool,
                       F: Fn($($ident),*) -> T,

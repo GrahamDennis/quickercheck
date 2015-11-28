@@ -7,6 +7,7 @@ use generate::{
     ResultGenerator,
     RandGenerator
 };
+use shrink;
 
 use std::collections::{
     BTreeMap,
@@ -17,28 +18,29 @@ use std::collections::{
     LinkedList,
     VecDeque
 };
-use std::iter::{self, FromIterator};
+use std::iter::{FromIterator};
 use num::bigint::{BigInt, BigUint};
 
 pub trait Arbitrary: Sized + 'static {
     type Generator: Generator<Output=Self>;
+    type Shrink: shrink::Shrink<Item=Self>;
 
     fn arbitrary() -> Self::Generator;
-    fn shrink(self) -> Box<Iterator<Item=Self>>
-    {
-        Box::new(iter::empty())
-    }
+    fn shrink() -> Self::Shrink;
 }
 
 macro_rules! tuple_impls {
     ($($name:ident),*) => {
         impl <$($name: Arbitrary),*> Arbitrary for ($($name,)*) {
             type Generator = ($($name::Generator,)*);
+            type Shrink = shrink::Empty<Self>;
 
             #[inline]
             fn arbitrary() -> Self::Generator {
                 ($($name::arbitrary(),)*)
             }
+
+            #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
         }
     }
 }
@@ -50,10 +52,13 @@ macro_rules! int_impls {
         $(
             impl Arbitrary for $ty {
                 type Generator = IntegerGenerator<$ty>;
+                type Shrink = shrink::Empty<Self>;
 
                 fn arbitrary() -> Self::Generator {
                     IntegerGenerator::new()
                 }
+
+                #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
             }
         )*
     }
@@ -64,10 +69,13 @@ macro_rules! uint_impls {
         $(
             impl Arbitrary for $ty {
                 type Generator = UnsignedIntegerGenerator<$ty>;
+                type Shrink = shrink::Empty<Self>;
 
                 fn arbitrary() -> Self::Generator {
                     UnsignedIntegerGenerator::new()
                 }
+
+                #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
             }
         )*
     }
@@ -83,10 +91,13 @@ macro_rules! generic_impls {
                 where $container<$($placeholder),*>: FromIterator<($($placeholder),*)>
             {
                 type Generator = FromIteratorGenerator<$container<$($placeholder),*>, <($($placeholder),*) as Arbitrary>::Generator>;
+                type Shrink = shrink::Empty<Self>;
 
                 fn arbitrary() -> Self::Generator {
                     FromIteratorGenerator::new(($($placeholder::arbitrary()),*))
                 }
+
+                #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
             }
         )*
     }
@@ -105,40 +116,55 @@ generic_impls! {
 
 impl <T: Arbitrary> Arbitrary for Option<T> {
     type Generator = OptionGenerator<T::Generator>;
+    type Shrink = shrink::Empty<Self>;
 
     fn arbitrary() -> Self::Generator {
         OptionGenerator::new(T::arbitrary())
     }
+
+    #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
 }
 
 impl <TOk: Arbitrary, TErr: Arbitrary> Arbitrary for Result<TOk, TErr> {
     type Generator = ResultGenerator<TOk::Generator, TErr::Generator>;
+    type Shrink = shrink::Empty<Self>;
 
     fn arbitrary() -> Self::Generator {
         ResultGenerator::new(TOk::arbitrary(), TErr::arbitrary())
     }
+
+    #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
 }
 
 impl Arbitrary for bool {
     type Generator = RandGenerator<bool>;
+    type Shrink = shrink::Empty<Self>;
 
     fn arbitrary() -> Self::Generator {
         RandGenerator::new()
     }
+
+    #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
 }
 
 impl Arbitrary for char {
     type Generator = RandGenerator<char>;
+    type Shrink = shrink::Empty<Self>;
 
     fn arbitrary() -> Self::Generator {
         RandGenerator::new()
     }
+
+    #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
 }
 
 impl Arbitrary for String {
     type Generator = FromIteratorGenerator<String, <char as Arbitrary>::Generator>;
+    type Shrink = shrink::Empty<Self>;
 
     fn arbitrary() -> Self::Generator {
         FromIteratorGenerator::new(char::arbitrary())
     }
+
+    #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
 }
