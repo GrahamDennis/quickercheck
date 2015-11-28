@@ -86,6 +86,13 @@ impl QuickCheck
         }
     }
 
+    pub fn tests(self, tests: usize) -> Self {
+        QuickCheck {
+            tests: tests,
+            ..self
+        }
+    }
+
     pub fn quicktest<T: IntoTestable>(&mut self, t: T) -> Result<usize> {
         let testable = t.into_testable();
         let max_tests = self.tests * self.max_discard_ratio;
