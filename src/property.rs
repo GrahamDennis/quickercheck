@@ -2,6 +2,7 @@ use arbitrary::Arbitrary;
 use generate::{Generator, GenerateCtx};
 use testable::{Testable, TestResult, TestStatus};
 use quick_fn::QuickFn;
+use rose::Rose;
 
 use std::marker::PhantomData;
 use std::fmt::Debug;
@@ -64,12 +65,12 @@ impl <G, T, F, Args: Debug> Testable for ForAllProperty<QuickFnArgs<Args>, G, F>
           T: Into<TestStatus>
 {
     #[inline]
-    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
+    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult> {
         let args = self.generator.generate(ctx);
-        TestResult {
+        Rose::single(TestResult {
             input: format!("{:?}", &args),
             status: self.f.call(args).into()
-        }
+        })
     }
 }
 
@@ -117,13 +118,13 @@ macro_rules! fn_impls {
         {
             #[inline]
             #[allow(non_snake_case)]
-            fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> TestResult {
+            fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult> {
                 let args = self.generator.generate(ctx);
                 let ($($ident,)*) = args;
-                TestResult {
+                Rose::single(TestResult {
                     input: format!("{:?}", ($(&$ident,)*)),
                     status: (self.f)($($ident),*).into()
-                }
+                })
             }
         }
 

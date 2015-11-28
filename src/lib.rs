@@ -12,6 +12,7 @@ mod macros;
 pub mod generate;
 pub mod arbitrary;
 mod quick_fn;
+pub mod rose;
 pub mod property;
 pub mod testable;
 pub mod quick_check;

@@ -1,5 +1,6 @@
 use generate::GenerateCtx;
 use testable::{IntoTestable, Testable, TestStatus, TestResult};
+use rose::Rose;
 
 use std::{self, cmp};
 use rand::{self, Rng, StdRng, SeedableRng};
@@ -107,13 +108,16 @@ impl QuickCheck
             let size = self.size(&state);
             let mut ctx = GenerateCtx::new(&mut test_rng, size);
 
-            let result = testable.test(&mut ctx);
-            self.log_result(&result);
+            let rose_result = testable.test(&mut ctx);
+            self.log_result(&rose_result.value);
 
-            match result.status {
+            match rose_result.value.status {
                 TestStatus::Pass => state.test_passed(),
                 TestStatus::Discard => state.test_discarded(),
-                TestStatus::Fail => return state.test_failed(testable, result, seed, size)
+                TestStatus::Fail => {
+                    let minimal_witness = self.shrink_failure(rose_result);
+                    return state.test_failed(testable, minimal_witness, seed, size);
+                }
             }
         }
 
@@ -126,6 +130,16 @@ impl QuickCheck
             _ => LogLevel::Debug
         };
         log!(log_level, "{:?}: {}", result.status, result.input);
+    }
+
+    fn shrink_failure(&self, rose_result: Rose<TestResult>) -> TestResult {
+        for shrunk_result in rose_result.iterator {
+            match shrunk_result.value.status {
+                TestStatus::Fail => return self.shrink_failure(shrunk_result),
+                _ => continue
+            }
+        }
+        rose_result.value
     }
 
     fn size(&self, state: &QuickCheckState) -> usize {
