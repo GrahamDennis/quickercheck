@@ -99,17 +99,24 @@ impl <G, S, Args> ForAll<QuickFnArgs<Args>, G, S> {
 }
 
 impl <Args: Arbitrary> Property<QuickFnArgs<Args>> {
-    pub fn new<F, T>(f: F) -> ForAllProperty<QuickFnArgs<Args>, Args::Generator, shrink::Empty<Args>, F>
+    pub fn new<F, T>(f: F) -> ForAllProperty<QuickFnArgs<Args>, Args::Generator, Args::Shrink, F>
         where F: QuickFn<Args, Output=T>,
               T: Into<TestStatus>
     {
-        Property::<QuickFnArgs<Args>>::for_all(<Args>::arbitrary()).property(f)
+        Property::<QuickFnArgs<Args>>::for_all_shrink(<Args>::arbitrary(), <Args>::shrink()).property(f)
     }
 
     pub fn for_all<G: Generator<Output=Args>>(g: G) -> ForAll<QuickFnArgs<Args>, G, shrink::Empty<Args>> {
+        Property::<QuickFnArgs<Args>>::for_all_shrink(g, shrink::Empty::empty())
+    }
+
+    pub fn for_all_shrink<G, S>(g: G, s: S) -> ForAll<QuickFnArgs<Args>, G, S>
+        where G: Generator<Output=Args>,
+              S: Shrink<Item=Args>
+    {
         ForAll {
             generator: g,
-            shrinker: shrink::Empty::empty(),
+            shrinker: s,
             _marker: PhantomData
         }
     }
@@ -159,18 +166,30 @@ macro_rules! fn_impls {
             pub fn new<F, T>(f: F) -> ForAllProperty<
                                             ($($ident,)*),
                                             <($($ident,)*) as Arbitrary>::Generator,
-                                            shrink::Empty<($($ident,)*)>,
+                                            <($($ident,)*) as Arbitrary>::Shrink,
                                             F>
                 where F: Fn($($ident),*) -> T,
                       T: Into<TestStatus>
             {
-                Property::<($($ident,)*)>::for_all(<($($ident,)*)>::arbitrary()).property(f)
+                Property::<($($ident,)*)>::for_all_shrink(
+                    <($($ident,)*) as Arbitrary>::arbitrary(),
+                    <($($ident,)*) as Arbitrary>::shrink()
+                ).property(f)
             }
 
-            pub fn for_all<G: Generator<Output=($($ident,)*)>>(g: G) -> ForAll<($($ident,)*), G, shrink::Empty<($($ident,)*)>> {
+            pub fn for_all<G>(g: G) -> ForAll<($($ident,)*), G, shrink::Empty<($($ident,)*)>>
+                where G: Generator<Output=($($ident,)*)>
+            {
+                Property::<($($ident,)*)>::for_all_shrink(g, shrink::Empty::empty())
+            }
+
+            pub fn for_all_shrink<G, S>(g: G, s: S) -> ForAll<($($ident,)*), G, S>
+                where G: Generator<Output=($($ident,)*)>,
+                      S: Shrink<Item=($($ident,)*)>
+            {
                 ForAll {
                     generator: g,
-                    shrinker: shrink::Empty::empty(),
+                    shrinker: s,
                     _marker: PhantomData
                 }
             }
