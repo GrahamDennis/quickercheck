@@ -68,6 +68,46 @@ macro_rules! tuple_impls {
 
 macro_tuples_impl!{tuple_impls}
 
+pub struct IntegerShrinker<T>(PhantomData<T>);
+
+impl <T> IntegerShrinker<T> where IntegerShrinker<T>: Shrink
+{
+    pub fn new() -> Self { IntegerShrinker(PhantomData) }
+}
+
+macro_rules! int_impls {
+    ($($ty:ty),*) => {
+        $(
+            impl Shrink for IntegerShrinker<$ty>
+            {
+                type Item = $ty;
+                type Iterator = Box<Iterator<Item=Self::Item>>;
+
+                #[inline]
+                fn shrink(v: &$ty) -> Self::Iterator {
+                    let v = *v;
+                    let mut initials = vec![0];
+                    if v < 0 { initials.push(-v); }
+                    initials.push(v/2);
+                    let range = 0..(v.abs());
+                    if v < 0 {
+                        Box::new(
+                            initials.into_iter()
+                                .chain(range.scan(v, |&mut v, r| Some(v + r)))
+                        )
+                    } else {
+                        Box::new(
+                            initials.into_iter()
+                                .chain(range.scan(v, |&mut v, r| Some(v - r)))
+                        )
+                    }
+                }
+            }
+        )*
+    }
+}
+
+int_impls! { i8, i16, i32, i64, isize }
 
 pub struct DefaultShrinker<T>(PhantomData<T>);
 
