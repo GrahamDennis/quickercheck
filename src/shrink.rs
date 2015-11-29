@@ -24,19 +24,43 @@ impl <T> Shrink for Empty<T> {
 }
 
 macro_rules! tuple_impls {
-    ($($name:ident),*) => {
-        impl <$($name: 'static + Shrink),*> Shrink for ($($name,)*) {
-            type Item = ($($name::Item,)*);
+    ($first:ident $(, $rest:ident)*) => {
+        impl <$first: 'static + Shrink $(, $rest: 'static + Shrink)*> Shrink for ($first, $($rest),*)
+            where $first::Item: Clone $(, $rest::Item: Clone)*
+        {
+            type Item = ($first::Item, $($rest::Item),*);
             type Iterator = Box<Iterator<Item=Self::Item>>;
 
             #[inline]
             #[allow(unused_variables, non_snake_case)]
             fn shrink(value: &Self::Item) -> Self::Iterator {
-                let ( $(ref $name,)* ) = *value;
+                let ( ref $first, $(ref $rest),*) = *value;
+                let t_rest: ($($rest::Item,)*) = ($($rest.clone(),)*);
+
                 Box::new(
-                    iter::empty()
+                    <$first as Shrink>::shrink($first)
+                        .scan(t_rest.clone(), |rest, $first| {
+                            let ($($rest,)*) = rest.clone();
+                            Some(($first, $($rest),*))
+                        })
+                        .chain(
+                            <($($rest,)*) as Shrink>::shrink(&t_rest)
+                                .scan($first.clone(), |$first, ($($rest,)*)| {
+                                    Some(($first.clone(), $($rest),*))
+                                })
+                        )
                 )
-//                ($($name.generate(ctx),)*)
+            }
+        }
+    };
+    () => {
+        impl Shrink for () {
+            type Item = ();
+            type Iterator = iter::Empty<()>;
+
+            #[inline]
+            fn shrink(_: &()) -> Self::Iterator {
+                iter::empty()
             }
         }
     }
