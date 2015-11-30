@@ -109,9 +109,9 @@ impl QuickCheck
             let mut ctx = GenerateCtx::new(&mut test_rng, size);
 
             let rose_result = testable.test(&mut ctx);
-            self.log_result(&rose_result.value);
+            self.log_result(&rose_result.value());
 
-            match rose_result.value.status {
+            match rose_result.value().status {
                 TestStatus::Pass => state.test_passed(),
                 TestStatus::Discard => state.test_discarded(),
                 TestStatus::Fail => {
@@ -132,14 +132,17 @@ impl QuickCheck
         log!(log_level, "{:?}: {}", result.status, result.input);
     }
 
-    fn shrink_failure(&self, rose_result: Rose<TestResult>) -> TestResult {
-        for shrunk_result in rose_result.iterator {
-            match shrunk_result.value.status {
+    fn shrink_failure<'a>(&self, mut rose_result: Box<Rose<TestResult>>) -> TestResult {
+        let test_result = rose_result.value().clone();
+
+        for shrunk_result in rose_result.iterator() {
+            match shrunk_result.value().status {
                 TestStatus::Fail => return self.shrink_failure(shrunk_result),
                 _ => continue
             }
         }
-        rose_result.value
+
+        test_result
     }
 
     fn size(&self, state: &QuickCheckState) -> usize {

@@ -3,7 +3,7 @@ use generate::{Generator, GenerateCtx};
 use shrink::{self, Shrink};
 use testable::{Testable, TestResult, TestStatus};
 use quick_fn::QuickFn;
-use rose::Rose;
+use rose::{Rose, SimpleRose};
 
 use std::marker::PhantomData;
 use std::fmt::Debug;
@@ -72,12 +72,14 @@ impl <G, S, T, F, Args: Debug> Testable for ForAllProperty<QuickFnArgs<Args>, G,
           T: Into<TestStatus>
 {
     #[inline]
-    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult> {
+    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Box<Rose<TestResult>> {
         let args = self.generator.generate(ctx);
-        Rose::single(TestResult {
-            input: format!("{:?}", &args),
-            status: self.f.call(args).into()
-        })
+        Box::new(
+            SimpleRose::single(TestResult {
+                input: format!("{:?}", &args),
+                status: self.f.call(args).into()
+            })
+        )
     }
 }
 
@@ -136,13 +138,37 @@ macro_rules! fn_impls {
         {
             #[inline]
             #[allow(non_snake_case)]
-            fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult> {
+            fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Box<Rose<TestResult>> {
                 let args = self.generator.generate(ctx);
+                self.rose_from_args(args)
+            }
+        }
+
+        impl <G, S, T, F, $($ident: Debug),*> ForAllProperty<($($ident,)*), G, S, F>
+            where G: Generator<Output=($($ident,)*)>,
+                  S: Shrink<Item=($($ident,)*)>,
+                  F: Fn($($ident),*) -> T,
+                  T: Into<TestStatus>
+        {
+            #[inline]
+            #[allow(non_snake_case)]
+            fn rose_from_args(&self, args: ($($ident,)*)) -> Box<Rose<TestResult>> {
                 let ($($ident,)*) = args;
-                Rose::single(TestResult {
-                    input: format!("{:?}", ($(&$ident,)*)),
-                    status: (self.f)($($ident),*).into()
-                })
+
+                Box::new(
+                    SimpleRose::single(
+                        TestResult {
+                            input: format!("{:?}", ($(&$ident,)*)),
+                            status: (self.f)($($ident),*).into()
+                        }
+                    )
+                )
+                //     ,
+                //     self.shrinker.shrink(&args)
+                //         .map(|shrunk_args| {
+                //             self.rose_from_args(shrunk_args)
+                //         })
+                // )
             }
         }
 

@@ -19,7 +19,7 @@ pub struct TestResult {
 pub enum TestStatus { Pass, Fail, Discard }
 
 pub trait Testable {
-    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult>;
+    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Box<Rose<TestResult>>;
     fn is_expected_to_fail(&self) -> bool {
         false
     }
@@ -27,7 +27,7 @@ pub trait Testable {
 
 impl <'a, T: Testable> Testable for &'a T {
     #[inline]
-    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult> {
+    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Box<Rose<TestResult>> {
         (*self).test(ctx)
     }
 }
@@ -59,7 +59,7 @@ impl <T, F> Testable for ResizedTestable<T, F>
     where T: Testable,
           F: Fn(usize) -> usize
 {
-    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult> {
+    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Box<Rose<TestResult>> {
         let new_size = (self.resize)(ctx.size);
         let mut new_ctx = GenerateCtx::new(ctx.rng, new_size);
         self.testable.test(&mut new_ctx)
@@ -69,7 +69,7 @@ impl <T, F> Testable for ResizedTestable<T, F>
 pub struct FailureExpectedTestable<T>(T);
 
 impl <T: Testable> Testable for FailureExpectedTestable<T> {
-    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult> { self.0.test(ctx) }
+    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Box<Rose<TestResult>> { self.0.test(ctx) }
     fn is_expected_to_fail(&self) -> bool { true }
 }
 

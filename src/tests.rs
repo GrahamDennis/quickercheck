@@ -159,7 +159,6 @@ fn failing_property() {
 }
 
 #[test]
-#[should_panic]
 fn failing_reverse_combine() {
     fn concat(xs: Vec<isize>, ys: Vec<isize>) -> Vec<isize> {
         xs.into_iter().chain(ys.into_iter()).collect()
