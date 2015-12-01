@@ -3,10 +3,11 @@ use generate::{Generator, GenerateCtx};
 use shrink::{self, Shrink};
 use testable::{Testable, TestResult, TestStatus};
 use quick_fn::QuickFn;
-use rose::{Rose, SimpleRose};
+use rose::{Rose, GenerateWithRose, RoseTraitMap};
 
 use std::marker::PhantomData;
 use std::fmt::Debug;
+use std::rc::Rc;
 use rand::Rng;
 
 #[derive(Copy, Clone)]
@@ -14,11 +15,11 @@ pub struct Property<Args> {
     _marker: PhantomData<Args>
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct ForAllProperty<Args, G, S, F> {
     generator: G,
     shrinker: S,
-    f: F,
+    f: Rc<F>,
     _marker: PhantomData<Args>
 }
 
@@ -35,7 +36,7 @@ pub struct When<Args, P> {
     _marker: PhantomData<Args>
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct WhenFn<Args, P, F> {
     predicate: P,
     f: F,
@@ -65,22 +66,31 @@ impl <A: Arbitrary> Arbitrary for QuickFnArgs<A> {
     #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
 }
 
-impl <G, S, T, F, Args: Debug> Testable for ForAllProperty<QuickFnArgs<Args>, G, S, F>
+impl <G, S, T, F, Args: Debug + 'static> Testable for ForAllProperty<QuickFnArgs<Args>, G, S, F>
     where G: Generator<Output=Args>,
-          S: Shrink<Item=Args>,
-          F: QuickFn<Args, Output=T>,
+          S: Shrink<Item=Args> + Clone + 'static,
+          <S as Shrink>::Iterator: 'static,
+          F: QuickFn<Args, Output=T> + 'static,
           T: Into<TestStatus>
 {
     #[inline]
-    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Box<Rose<TestResult>> {
+    fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult> {
         let args = self.generator.generate(ctx);
-        Box::new(
-            SimpleRose::single(TestResult {
-                input: format!("{:?}", &args),
-                status: self.f.call(args).into()
-            })
+        let shrinker = self.shrinker.clone();
+
+        GenerateWithRose::new(
+            args,
+            shrinker,
+            |shrinker, args| Box::new(shrinker.shrink(&args))
+        ).scan(
+            self.f.clone(),
+            |f, args|
+                TestResult {
+                    input: format!("{:?}", &args),
+                    status: f.call(args).into()
+                }
         )
-    }
+     }
 }
 
 impl <G, S, Args> ForAll<QuickFnArgs<Args>, G, S> {
@@ -94,7 +104,7 @@ impl <G, S, Args> ForAll<QuickFnArgs<Args>, G, S> {
         ForAllProperty {
             generator: self.generator,
             shrinker: self.shrinker,
-            f: f,
+            f: Rc::new(f),
             _marker: PhantomData
         }
     }
@@ -138,7 +148,7 @@ macro_rules! fn_impls {
         {
             #[inline]
             #[allow(non_snake_case)]
-            fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Box<Rose<TestResult>> {
+            fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult> {
                 let args = self.generator.generate(ctx);
                 self.rose_from_args(args)
             }
@@ -152,16 +162,14 @@ macro_rules! fn_impls {
         {
             #[inline]
             #[allow(non_snake_case)]
-            fn rose_from_args(&self, args: ($($ident,)*)) -> Box<Rose<TestResult>> {
+            fn rose_from_args(&self, args: ($($ident,)*)) -> Rose<TestResult> {
                 let ($($ident,)*) = args;
 
-                Box::new(
-                    SimpleRose::single(
-                        TestResult {
-                            input: format!("{:?}", ($(&$ident,)*)),
-                            status: (self.f)($($ident),*).into()
-                        }
-                    )
+                Rose::single(
+                    TestResult {
+                        input: format!("{:?}", ($(&$ident,)*)),
+                        status: (self.f)($($ident),*).into()
+                    }
                 )
                 //     ,
                 //     self.shrinker.shrink(&args)
@@ -182,7 +190,7 @@ macro_rules! fn_impls {
                 ForAllProperty {
                     generator: self.generator,
                     shrinker: self.shrinker,
-                    f: f,
+                    f: Rc::new(f),
                     _marker: PhantomData
                 }
             }
