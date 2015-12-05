@@ -95,6 +95,8 @@ impl QuickCheck
     }
 
     pub fn quicktest<T: IntoTestable>(&mut self, t: T) -> Result<usize> {
+        let _ = ::env_logger::init();
+
         let testable = t.into_testable();
         let max_tests = self.tests * self.max_discard_ratio;
 
@@ -166,8 +168,6 @@ impl QuickCheck
     }
 
     pub fn quickcheck<T: IntoTestable>(&mut self, t: T) {
-        let _ = ::env_logger::init();
-
         match self.quicktest(t) {
             Ok(ntests) => info!("(Passed {} QuickCheck tests.)", ntests),
             Err(err) => {

@@ -161,8 +161,6 @@ fn failing_property() {
 
 #[test]
 fn failing_reverse_combine() {
-    ::env_logger::init().unwrap();
-
     fn concat(xs: Vec<isize>, ys: Vec<isize>) -> Vec<isize> {
         xs.into_iter().chain(ys.into_iter()).collect()
     }

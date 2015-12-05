@@ -153,6 +153,7 @@ macro_rules! uint_impls {
                     Box::new(
                         vec![0, v/2].into_iter()
                             .chain((0..v).scan(v, |&mut v, r| Some(v - r)))
+                            .filter(move |x| *x < v)
                     )
                 }
             }
