@@ -1,5 +1,6 @@
 use generate::GenerateCtx;
 use testable::{IntoTestable, Testable, TestStatus, TestResult};
+use rose::Rose;
 
 use std::{self, cmp};
 use rand::{self, Rng, StdRng, SeedableRng};
@@ -94,6 +95,8 @@ impl QuickCheck
     }
 
     pub fn quicktest<T: IntoTestable>(&mut self, t: T) -> Result<usize> {
+        let _ = ::env_logger::init();
+
         let testable = t.into_testable();
         let max_tests = self.tests * self.max_discard_ratio;
 
@@ -107,13 +110,17 @@ impl QuickCheck
             let size = self.size(&state);
             let mut ctx = GenerateCtx::new(&mut test_rng, size);
 
-            let result = testable.test(&mut ctx);
-            self.log_result(&result);
+            let rose_result = testable.test(&mut ctx);
+            self.log_result(&rose_result.value);
 
-            match result.status {
+            match rose_result.value.status {
                 TestStatus::Pass => state.test_passed(),
                 TestStatus::Discard => state.test_discarded(),
-                TestStatus::Fail => return state.test_failed(testable, result, seed, size)
+                TestStatus::Fail => {
+                    info!("Attempting to reduce to a minimal failing case...");
+                    let minimal_witness = self.shrink_failure(rose_result);
+                    return state.test_failed(testable, minimal_witness, seed, size);
+                }
             }
         }
 
@@ -123,9 +130,23 @@ impl QuickCheck
     fn log_result(&self, result: &TestResult) {
         let log_level = match result.status {
             TestStatus::Discard => LogLevel::Trace,
+            TestStatus::Fail => LogLevel::Info,
             _ => LogLevel::Debug
         };
         log!(log_level, "{:?}: {}", result.status, result.input);
+    }
+
+    fn shrink_failure<'a>(&self, rose_result: Rose<TestResult>) -> TestResult {
+        for shrunk_result in rose_result.iterator {
+            assert!(shrunk_result.value.input != rose_result.value.input);
+            self.log_result(&shrunk_result.value);
+            match shrunk_result.value.status {
+                TestStatus::Fail => return self.shrink_failure(shrunk_result),
+                _ => continue
+            }
+        }
+
+        rose_result.value
     }
 
     fn size(&self, state: &QuickCheckState) -> usize {
@@ -147,8 +168,6 @@ impl QuickCheck
     }
 
     pub fn quickcheck<T: IntoTestable>(&mut self, t: T) {
-        let _ = ::env_logger::init();
-
         match self.quicktest(t) {
             Ok(ntests) => info!("(Passed {} QuickCheck tests.)", ntests),
             Err(err) => {
