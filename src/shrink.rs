@@ -23,7 +23,6 @@ impl <T> Shrink for Empty<T> {
     type Iterator = iter::Empty<T>;
 
     fn shrink(&self, _: &Self::Item) -> Self::Iterator {
-        info!("Shrink on an Empty<T>");
         iter::empty()
     }
 }
@@ -52,10 +51,9 @@ macro_rules! tuple_shrink_iterator {
                 )
         }.chain(tuple_shrink_iterator!($shrinkers, ($($value_before,)* $value,), ($($value_after,)*)))
     };
-    ( $shrinkers:ident, ($($value_before:ident,)*), ()) => {{
-        info!("end of tuple shrink iterator..");
+    ( $shrinkers:ident, ($($value_before:ident,)*), ()) => {
         iter::empty()
-    }}
+    }
 }
 
 macro_rules! tuple_impls {
@@ -70,7 +68,6 @@ macro_rules! tuple_impls {
             #[allow(unused_variables, non_snake_case)]
             fn shrink(&self, value: &Self::Item) -> Self::Iterator {
                 let ($first, $($rest,)*) = value.clone();
-                info!("tuple shrinker...");
                 Box::new(
                     tuple_shrink_iterator!(self, (), ($first, $($rest,)*))
                 )
@@ -84,7 +81,6 @@ macro_rules! tuple_impls {
 
             #[inline]
             fn shrink(&self, _: &()) -> Self::Iterator {
-                info!("empty tuple shrinker...");
                 iter::empty()
             }
         }
@@ -109,22 +105,23 @@ macro_rules! int_impls {
                 type Item = $ty;
                 type Iterator = Box<Iterator<Item=Self::Item>>;
 
-                #[inline]
                 fn shrink(&self, v: &$ty) -> Self::Iterator {
                     let v = *v;
                     let mut initials = vec![0];
                     if v < 0 { initials.push(-v); }
                     initials.push(v/2);
-                    let range = 0..(v.abs());
+                    let range = 1..(v.abs());
                     if v < 0 {
                         Box::new(
                             initials.into_iter()
                                 .chain(range.scan(v, |&mut v, r| Some(v + r)))
+                                .filter(move |x| x.abs() <= v.abs() && *x != v)
                         )
                     } else {
                         Box::new(
                             initials.into_iter()
                                 .chain(range.scan(v, |&mut v, r| Some(v - r)))
+                                .filter(move |x| x.abs() <= v.abs() && *x != v)
                         )
                     }
                 }
@@ -151,7 +148,6 @@ macro_rules! uint_impls {
                 type Item = $ty;
                 type Iterator = Box<Iterator<Item=Self::Item>>;
 
-                #[inline]
                 fn shrink(&self, v: &$ty) -> Self::Iterator {
                     let v = *v;
                     Box::new(
@@ -189,7 +185,6 @@ impl <C, S> Shrink for FromIteratorShrinker<C, S>
     type Iterator = Box<Iterator<Item=Self::Item>>;
 
     fn shrink(&self, v: &C) -> Self::Iterator {
-        info!("FromIteratorShrinker...");
         let elements = v.clone().into_iter().collect::<Vec<_>>();
         let elements_len = elements.len();
         let shrinker = self.shrinker.clone();
@@ -204,17 +199,18 @@ impl <C, S> Shrink for FromIteratorShrinker<C, S>
                     (0..(elements.len()))
                         .scan((elements, shrinker), |&mut (ref elements, ref shrinker), idx| {
                             let ref v = elements[idx];
+                            let elements = elements.clone();
                             Some(
-                                shrinker.shrink(&v)
-                                    .map(|v_shrunk| {
+                                Box::new(shrinker.shrink(&v)
+                                    .map(move |v_shrunk| {
                                         let mut elements = elements.clone();
                                         elements[idx] = v_shrunk;
                                         elements.into_iter().collect::<C>()
                                     })
-                                    .nth(0)
+                                ) as Box<Iterator<Item=C>>
                             )
                         })
-                        .filter_map(|x: Option<C>| x)
+                        .fold(Box::new(iter::empty()) as Box<Iterator<Item=C>>, |it, next| Box::new(it.chain(next)))
                 )
         )
     }

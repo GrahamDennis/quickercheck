@@ -1,7 +1,8 @@
 use quick_check::{
     quickcheck,
     quicktest,
-    QuickCheck
+    QuickCheck,
+    QuickCheckError
 };
 
 use property::{
@@ -30,7 +31,7 @@ fn prop_oob() {
         let zero: Vec<bool> = vec![];
         zero[0]
     }
-    quicktest(prop as fn() -> bool);
+    quickcheck(prop as fn() -> bool);
 }
 
 #[test]
@@ -160,6 +161,8 @@ fn failing_property() {
 
 #[test]
 fn failing_reverse_combine() {
+    ::env_logger::init().unwrap();
+
     fn concat(xs: Vec<isize>, ys: Vec<isize>) -> Vec<isize> {
         xs.into_iter().chain(ys.into_iter()).collect()
     }
@@ -171,5 +174,10 @@ fn failing_reverse_combine() {
         reverse(concat(xs.clone(), ys.clone())) == concat(reverse(xs.clone()), reverse(ys.clone()))
     }
 
-    quickcheck(reverse_combine as fn(Vec<isize>, Vec<isize>) -> bool);
+    let result = quicktest(reverse_combine as fn(Vec<isize>, Vec<isize>) -> bool);
+    match result {
+        Err(QuickCheckError::Failure {ref input, .. }) =>
+            assert!(input == "([0], [1])" || input == "([1], [0])", "Didn't get the expected shrunk result.  Instead found {:?}", result),
+        _ => assert!(false, "Test didn't fail: {:?}", result)
+    }
 }

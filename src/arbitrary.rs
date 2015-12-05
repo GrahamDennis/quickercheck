@@ -46,7 +46,7 @@ macro_rules! tuple_impls {
                 ($($name::arbitrary(),)*)
             }
 
-            #[inline] fn shrink() -> Self::Shrink {
+            fn shrink() -> Self::Shrink {
                 ($($name::shrink(),)*)
             }
         }
@@ -66,7 +66,7 @@ macro_rules! int_impls {
                     IntegerGenerator::new()
                 }
 
-                #[inline] fn shrink() -> Self::Shrink {
+                fn shrink() -> Self::Shrink {
                     IntegerShrinker::new()
                 }
             }
@@ -85,7 +85,7 @@ macro_rules! uint_impls {
                     UnsignedIntegerGenerator::new()
                 }
 
-                #[inline] fn shrink() -> Self::Shrink {
+                fn shrink() -> Self::Shrink {
                     UnsignedIntegerShrinker::new()
                 }
             }
@@ -109,7 +109,7 @@ macro_rules! generic_impls {
                     FromIteratorGenerator::new(($($placeholder::arbitrary()),*))
                 }
 
-                #[inline] fn shrink() -> Self::Shrink {
+                fn shrink() -> Self::Shrink {
                     FromIteratorShrinker::new(($($placeholder::shrink()),*))
                 }
             }
@@ -158,7 +158,7 @@ impl Arbitrary for bool {
         RandGenerator::new()
     }
 
-    #[inline] fn shrink() -> Self::Shrink {
+    fn shrink() -> Self::Shrink {
         DefaultShrinker::new()
     }
 }

@@ -136,8 +136,8 @@ impl QuickCheck
 
     fn shrink_failure<'a>(&self, rose_result: Rose<TestResult>) -> TestResult {
         for shrunk_result in rose_result.iterator {
-            info!("{:?}: {}", shrunk_result.value.status, shrunk_result.value.input);
-            // self.log_result(&shrunk_result.value);
+            assert!(shrunk_result.value.input != rose_result.value.input);
+            self.log_result(&shrunk_result.value);
             match shrunk_result.value.status {
                 TestStatus::Fail => return self.shrink_failure(shrunk_result),
                 _ => continue
