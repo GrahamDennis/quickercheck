@@ -20,6 +20,7 @@ impl <T: 'static> Rose<T>
 
     pub fn single(value: T) -> Rose<T>
     {
+        info!("Creating a Rose::single");
         Rose {
             value: value,
             iterator: Box::new(iter::empty())

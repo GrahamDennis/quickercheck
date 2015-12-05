@@ -140,43 +140,34 @@ impl <Args: Arbitrary> Property<QuickFnArgs<Args>> {
 
 macro_rules! fn_impls {
     ($($ident:ident),*) => {
-        impl <G, S, T, F, $($ident: Debug),*> Testable for ForAllProperty<($($ident,)*), G, S, F>
+        impl <G, S, T, F, $($ident: Debug + 'static),*> Testable for ForAllProperty<($($ident,)*), G, S, F>
             where G: Generator<Output=($($ident,)*)>,
-                  S: Shrink<Item=($($ident,)*)>,
-                  F: Fn($($ident),*) -> T,
+                  S: Shrink<Item=($($ident,)*)> + Clone + 'static,
+                  <S as Shrink>::Iterator: 'static,
+                  F: Fn($($ident),*) -> T + 'static,
                   T: Into<TestStatus>
         {
             #[inline]
             #[allow(non_snake_case)]
             fn test<R: Rng>(&self, ctx: &mut GenerateCtx<R>) -> Rose<TestResult> {
                 let args = self.generator.generate(ctx);
-                self.rose_from_args(args)
-            }
-        }
+                let shrinker = self.shrinker.clone();
 
-        impl <G, S, T, F, $($ident: Debug),*> ForAllProperty<($($ident,)*), G, S, F>
-            where G: Generator<Output=($($ident,)*)>,
-                  S: Shrink<Item=($($ident,)*)>,
-                  F: Fn($($ident),*) -> T,
-                  T: Into<TestStatus>
-        {
-            #[inline]
-            #[allow(non_snake_case)]
-            fn rose_from_args(&self, args: ($($ident,)*)) -> Rose<TestResult> {
-                let ($($ident,)*) = args;
-
-                Rose::single(
-                    TestResult {
-                        input: format!("{:?}", ($(&$ident,)*)),
-                        status: (self.f)($($ident),*).into()
+                GenerateWithRose::new(
+                    args,
+                    shrinker,
+                    |shrinker, args| Box::new(shrinker.shrink(&args))
+                ).scan(
+                    self.f.clone(),
+                    |f, args| {
+                        let input = format!("{:?}", &args);
+                        let ($($ident,)*) = args;
+                        TestResult {
+                            input: input,
+                            status: f($($ident),*).into()
+                        }
                     }
                 )
-                //     ,
-                //     self.shrinker.shrink(&args)
-                //         .map(|shrunk_args| {
-                //             self.rose_from_args(shrunk_args)
-                //         })
-                // )
             }
         }
 
@@ -257,7 +248,7 @@ macro_rules! fn_impls {
             pub fn property<F, T>(self, f: F)
                 -> ForAllProperty<QuickFnArgs<($($ident,)*)>,
                                   <($($ident,)*) as Arbitrary>::Generator,
-                                  shrink::Empty<($($ident,)*)>,
+                                  <($($ident,)*) as Arbitrary>::Shrink,
                                   WhenFn<($($ident,)*), P, F>>
                 where P: Fn($($ident),*) -> bool,
                       F: Fn($($ident),*) -> T,

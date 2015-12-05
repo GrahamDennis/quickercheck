@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::iter::{self, FromIterator, IntoIterator};
 
-pub trait Shrink {
+pub trait Shrink: Clone {
     type Item;
     type Iterator: Iterator<Item=Self::Item>;
 
@@ -9,6 +9,10 @@ pub trait Shrink {
 }
 
 pub struct Empty<T>(PhantomData<T>);
+
+impl <T> Clone for Empty<T> {
+    fn clone(&self) -> Self { Empty::empty() }
+}
 
 impl <T> Empty<T> {
     pub fn empty() -> Self { Empty(PhantomData) }
@@ -19,6 +23,7 @@ impl <T> Shrink for Empty<T> {
     type Iterator = iter::Empty<T>;
 
     fn shrink(&self, _: &Self::Item) -> Self::Iterator {
+        info!("Shrink on an Empty<T>");
         iter::empty()
     }
 }
@@ -47,9 +52,10 @@ macro_rules! tuple_shrink_iterator {
                 )
         }.chain(tuple_shrink_iterator!($shrinkers, ($($value_before,)* $value,), ($($value_after,)*)))
     };
-    ( $shrinkers:ident, ($($value_before:ident,)*), ()) => {
+    ( $shrinkers:ident, ($($value_before:ident,)*), ()) => {{
+        info!("end of tuple shrink iterator..");
         iter::empty()
-    }
+    }}
 }
 
 macro_rules! tuple_impls {
@@ -64,6 +70,7 @@ macro_rules! tuple_impls {
             #[allow(unused_variables, non_snake_case)]
             fn shrink(&self, value: &Self::Item) -> Self::Iterator {
                 let ($first, $($rest,)*) = value.clone();
+                info!("tuple shrinker...");
                 Box::new(
                     tuple_shrink_iterator!(self, (), ($first, $($rest,)*))
                 )
@@ -77,6 +84,7 @@ macro_rules! tuple_impls {
 
             #[inline]
             fn shrink(&self, _: &()) -> Self::Iterator {
+                info!("empty tuple shrinker...");
                 iter::empty()
             }
         }
@@ -85,6 +93,7 @@ macro_rules! tuple_impls {
 
 macro_tuples_impl!{tuple_impls}
 
+#[derive(Clone)]
 pub struct IntegerShrinker<T>(PhantomData<T>);
 
 impl <T> IntegerShrinker<T> where IntegerShrinker<T>: Shrink
@@ -126,6 +135,7 @@ macro_rules! int_impls {
 
 int_impls! { i8, i16, i32, i64, isize }
 
+#[derive(Clone)]
 pub struct UnsignedIntegerShrinker<T>(PhantomData<T>);
 
 impl <T> UnsignedIntegerShrinker<T> where UnsignedIntegerShrinker<T>: Shrink
@@ -154,8 +164,9 @@ macro_rules! uint_impls {
     }
 }
 
-uint_impls! { i8, i16, i32, i64, isize }
+uint_impls! { u8, u16, u32, u64, usize }
 
+#[derive(Clone)]
 pub struct FromIteratorShrinker<C, S> {
     shrinker: S,
     _marker: PhantomData<C>
@@ -170,7 +181,7 @@ impl <C, S> FromIteratorShrinker<C, S>
 }
 
 impl <C, S> Shrink for FromIteratorShrinker<C, S>
-    where S: Shrink + Clone + 'static,
+    where S: Shrink + 'static,
           C: FromIterator<S::Item> + IntoIterator<Item=S::Item> + Clone + 'static,
           S::Item: Clone + 'static
 {
@@ -178,6 +189,7 @@ impl <C, S> Shrink for FromIteratorShrinker<C, S>
     type Iterator = Box<Iterator<Item=Self::Item>>;
 
     fn shrink(&self, v: &C) -> Self::Iterator {
+        info!("FromIteratorShrinker...");
         let elements = v.clone().into_iter().collect::<Vec<_>>();
         let elements_len = elements.len();
         let shrinker = self.shrinker.clone();
@@ -252,6 +264,7 @@ impl <T, C> Iterator for Removes<T, C>
     }
 }
 
+#[derive(Clone)]
 pub struct DefaultShrinker<T>(PhantomData<T>);
 
 impl <T> DefaultShrinker<T>

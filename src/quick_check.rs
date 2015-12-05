@@ -115,6 +115,7 @@ impl QuickCheck
                 TestStatus::Pass => state.test_passed(),
                 TestStatus::Discard => state.test_discarded(),
                 TestStatus::Fail => {
+                    info!("Attempting to reduce to a minimal failing case...");
                     let minimal_witness = self.shrink_failure(rose_result);
                     return state.test_failed(testable, minimal_witness, seed, size);
                 }
@@ -127,6 +128,7 @@ impl QuickCheck
     fn log_result(&self, result: &TestResult) {
         let log_level = match result.status {
             TestStatus::Discard => LogLevel::Trace,
+            TestStatus::Fail => LogLevel::Info,
             _ => LogLevel::Debug
         };
         log!(log_level, "{:?}: {}", result.status, result.input);
@@ -134,6 +136,8 @@ impl QuickCheck
 
     fn shrink_failure<'a>(&self, rose_result: Rose<TestResult>) -> TestResult {
         for shrunk_result in rose_result.iterator {
+            info!("{:?}: {}", shrunk_result.value.status, shrunk_result.value.input);
+            // self.log_result(&shrunk_result.value);
             match shrunk_result.value.status {
                 TestStatus::Fail => return self.shrink_failure(shrunk_result),
                 _ => continue

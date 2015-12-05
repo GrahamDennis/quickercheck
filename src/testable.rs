@@ -1,5 +1,4 @@
 use generate::GenerateCtx;
-use shrink;
 use arbitrary::Arbitrary;
 use property::{Property, ForAllProperty};
 use rose::Rose;
@@ -116,9 +115,9 @@ impl From<()> for TestStatus {
 
 macro_rules! fn_impls {
     ($($name:ident),*) => {
-        impl <Output: Into<TestStatus>, $($name: Arbitrary + Debug),*> IntoTestable for fn($($name),*) -> Output
+        impl <Output: Into<TestStatus> + 'static, $($name: Arbitrary + Debug + 'static),*> IntoTestable for fn($($name),*) -> Output
         {
-            type Testable = ForAllProperty<($($name,)*), <($($name,)*) as Arbitrary>::Generator, shrink::Empty<($($name,)*)>, Self>;
+            type Testable = ForAllProperty<($($name,)*), <($($name,)*) as Arbitrary>::Generator, <($($name,)*) as Arbitrary>::Shrink, Self>;
 
             #[inline]
             fn into_testable(self) -> Self::Testable {

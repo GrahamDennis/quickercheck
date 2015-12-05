@@ -7,7 +7,14 @@ use generate::{
     ResultGenerator,
     RandGenerator
 };
-use shrink;
+use shrink::{
+    self,
+    Shrink,
+    IntegerShrinker,
+    UnsignedIntegerShrinker,
+    FromIteratorShrinker,
+    DefaultShrinker
+};
 
 use std::collections::{
     BTreeMap,
@@ -19,11 +26,10 @@ use std::collections::{
     VecDeque
 };
 use std::iter::{FromIterator};
-use num::bigint::{BigInt, BigUint};
 
-pub trait Arbitrary: Sized + 'static {
+pub trait Arbitrary: Sized + Clone + 'static {
     type Generator: Generator<Output=Self>;
-    type Shrink: shrink::Shrink<Item=Self>;
+    type Shrink: Shrink<Item=Self>;
 
     fn arbitrary() -> Self::Generator;
     fn shrink() -> Self::Shrink;
@@ -33,14 +39,16 @@ macro_rules! tuple_impls {
     ($($name:ident),*) => {
         impl <$($name: Arbitrary),*> Arbitrary for ($($name,)*) {
             type Generator = ($($name::Generator,)*);
-            type Shrink = shrink::Empty<Self>;
+            type Shrink = ($($name::Shrink,)*);
 
             #[inline]
             fn arbitrary() -> Self::Generator {
                 ($($name::arbitrary(),)*)
             }
 
-            #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
+            #[inline] fn shrink() -> Self::Shrink {
+                ($($name::shrink(),)*)
+            }
         }
     }
 }
@@ -52,13 +60,15 @@ macro_rules! int_impls {
         $(
             impl Arbitrary for $ty {
                 type Generator = IntegerGenerator<$ty>;
-                type Shrink = shrink::Empty<Self>;
+                type Shrink = IntegerShrinker<$ty>;
 
                 fn arbitrary() -> Self::Generator {
                     IntegerGenerator::new()
                 }
 
-                #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
+                #[inline] fn shrink() -> Self::Shrink {
+                    IntegerShrinker::new()
+                }
             }
         )*
     }
@@ -69,35 +79,39 @@ macro_rules! uint_impls {
         $(
             impl Arbitrary for $ty {
                 type Generator = UnsignedIntegerGenerator<$ty>;
-                type Shrink = shrink::Empty<Self>;
+                type Shrink = UnsignedIntegerShrinker<$ty>;
 
                 fn arbitrary() -> Self::Generator {
                     UnsignedIntegerGenerator::new()
                 }
 
-                #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
+                #[inline] fn shrink() -> Self::Shrink {
+                    UnsignedIntegerShrinker::new()
+                }
             }
         )*
     }
 }
 
-int_impls!  {i8, i16, i32, i64, isize, BigInt}
-uint_impls! {u8, u16, u32, u64, usize, BigUint}
+int_impls!  {i8, i16, i32, i64, isize}
+uint_impls! {u8, u16, u32, u64, usize}
 
 macro_rules! generic_impls {
     ($($container:ident < $($placeholder:ident),* >),*) => {
         $(
-            impl <$($placeholder: Arbitrary),*> Arbitrary for $container<$($placeholder),*>
-                where $container<$($placeholder),*>: FromIterator<($($placeholder),*)>
+            impl <$($placeholder: Arbitrary + Clone),*> Arbitrary for $container<$($placeholder),*>
+                where $container<$($placeholder),*>: FromIterator<($($placeholder),*)> + IntoIterator<Item=($($placeholder),*)>
             {
                 type Generator = FromIteratorGenerator<$container<$($placeholder),*>, <($($placeholder),*) as Arbitrary>::Generator>;
-                type Shrink = shrink::Empty<Self>;
+                type Shrink = FromIteratorShrinker<$container<$($placeholder),*>, <($($placeholder),*) as Arbitrary>::Shrink>;
 
                 fn arbitrary() -> Self::Generator {
                     FromIteratorGenerator::new(($($placeholder::arbitrary()),*))
                 }
 
-                #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
+                #[inline] fn shrink() -> Self::Shrink {
+                    FromIteratorShrinker::new(($($placeholder::shrink()),*))
+                }
             }
         )*
     }
@@ -138,13 +152,15 @@ impl <TOk: Arbitrary, TErr: Arbitrary> Arbitrary for Result<TOk, TErr> {
 
 impl Arbitrary for bool {
     type Generator = RandGenerator<bool>;
-    type Shrink = shrink::Empty<Self>;
+    type Shrink = DefaultShrinker<bool>;
 
     fn arbitrary() -> Self::Generator {
         RandGenerator::new()
     }
 
-    #[inline] fn shrink() -> Self::Shrink { shrink::Empty::empty() }
+    #[inline] fn shrink() -> Self::Shrink {
+        DefaultShrinker::new()
+    }
 }
 
 impl Arbitrary for char {
