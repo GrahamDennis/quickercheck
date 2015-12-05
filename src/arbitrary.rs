@@ -41,7 +41,6 @@ macro_rules! tuple_impls {
             type Generator = ($($name::Generator,)*);
             type Shrink = ($($name::Shrink,)*);
 
-            #[inline]
             fn arbitrary() -> Self::Generator {
                 ($($name::arbitrary(),)*)
             }

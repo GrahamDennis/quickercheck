@@ -64,7 +64,6 @@ macro_rules! tuple_impls {
             type Item = ($first::Item, $($rest::Item),*);
             type Iterator = Box<Iterator<Item=Self::Item>>;
 
-            #[inline]
             #[allow(unused_variables, non_snake_case)]
             fn shrink(&self, value: &Self::Item) -> Self::Iterator {
                 let ($first, $($rest,)*) = value.clone();
