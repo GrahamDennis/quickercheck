@@ -5,7 +5,7 @@ authors = ["Graham Dennis <graham.dennis@gmail.com>"]
 description = "Automatic property-based testing."
 homepage = "https://github.com/GrahamDenis/quickercheck"
 repository = "https://github.com/GrahamDennis/quickercheck"
-license = "Unlicense/MIT"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 rand = "0.3"
